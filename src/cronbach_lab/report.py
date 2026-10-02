@@ -9,7 +9,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .scenarios import ITEM_COUNTS, THRESHOLD
+from .profiles import PROFILES
+from .scenarios import DEFAULT_N, ITEM_COUNTS, THRESHOLD
 
 
 def plot_loading_items(results, path):
@@ -49,12 +50,36 @@ def plot_bars(results, scenario, path):
     plt.close(fig)
 
 
+def plot_response_style(results, path):
+    """Mean alpha against the strength of one style trait, a panel per scale."""
+    d = results[results.scenario == "response_style"]
+    scales = d.scale.unique()
+    fig, axes = plt.subplots(1, len(scales), figsize=(4.5 * len(scales), 4), sharey=True)
+    for ax, scale in zip(axes, scales):
+        for (profile, style), g in d[d.scale == scale].groupby(["profile", "style"]):
+            ax.plot(
+                g.strength,
+                g.mean_alpha,
+                color={"lima": "tab:red", "california": "tab:blue"}[profile],
+                ls="-" if style == "acquiescence" else "--",
+                label=f"{profile}, {style}",
+            )
+        ax.axhline(THRESHOLD, color="k", ls=":", lw=1)
+        ax.set(title=scale, xlabel="style strength (sd of the trait)")
+    axes[0].set_ylabel("mean Cronbach alpha")
+    axes[0].legend()
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
 def write_plots(results, out_dir):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     plot_loading_items(results, out_dir / "loading_items.png")
+    plot_response_style(results, out_dir / "response_style.png")
     for scenario in results.scenario.unique():
-        if scenario != "loading_items":
+        if scenario not in ("loading_items", "response_style"):
             plot_bars(results, scenario, out_dir / f"{scenario}.png")
 
 
@@ -118,6 +143,138 @@ def loading_grid(results):
             + [f"{by_k[k].mean_alpha:.2f} ({by_k[k].share_ge_0_7:.0%})" for k in ITEM_COUNTS]
         )
     return md_table(["loading"] + [f"{k} items" for k in ITEM_COUNTS], rows)
+
+
+def profile_findings(results):
+    """Section 9: lima and california."""
+    at = lambda scenario, scale, profile: one(results, scenario, f"{scale}, {profile}").mean_alpha
+    sensitivity = lambda scale, profile, style, strength: (
+        one(results, "response_style", f"{scale}, {profile}, {style}={strength}").mean_alpha
+    )
+
+    marketing, as_is, recoded = "marketing sensorial", "satisfaccion as is", "satisfaccion recoded"
+    assumptions = md_table(
+        ["profile", "answers 1..5 (%)", "extreme sd", "acquiescence sd", "loading"],
+        [
+            [
+                p.name,
+                " / ".join(f"{100 * share:.0f}" for share in p.probs),
+                p.extreme,
+                p.acquiescence,
+                p.loading,
+            ]
+            for p in PROFILES.values()
+        ],
+    )
+
+    def table(scenario):
+        rows = [
+            [scale]
+            + [
+                f"{one(results, scenario, f'{scale}, {p}').mean_alpha:.2f} "
+                f"({one(results, scenario, f'{scale}, {p}').share_ge_0_7:.0%})"
+                for p in [*PROFILES, "pooled"]
+            ]
+            for scale in [marketing, as_is, recoded]
+        ]
+        return md_table(["scale", *PROFILES, "pooled"], rows)
+
+    sweep = md_table(
+        ["scale", "profile", "extreme 0", "extreme 1", "acquiescence 0", "acquiescence 1"],
+        [
+            [scale, profile]
+            + [
+                f"{sensitivity(scale, profile, style, strength):.2f}"
+                for style in ["extreme", "acquiescence"]
+                for strength in [0.0, 1.0]
+            ]
+            for scale in [marketing, as_is, recoded]
+            for profile in PROFILES
+        ],
+    )
+    gap = lambda scenario, scale: at(scenario, scale, "lima") - at(scenario, scale, "california")
+
+    return f"""## 9. Location profiles: lima and california
+
+Everything in this section is an assumption of the simulation. The two profiles
+are invented to show what response habits can do to alpha. They are not measured
+on real Lima or California respondents. A profile sets the share of answers in
+each category, an extreme-response style (each respondent has a gain that
+stretches their score toward 1 and 5), an acquiescence style (each respondent
+has a tendency to agree that raises the answer to every item) and a loading.
+
+{assumptions}
+
+Three scales are scored, each with {DEFAULT_N} respondents per profile: Marketing
+Sensorial pooled as 15 items (dimensions correlated 0.3), Satisfaccion pooled as
+is, and Satisfaccion with apatico and problematico reverse-scored. Cells show
+mean alpha and the share of runs >= {THRESHOLD}.
+
+### Alpha per profile, and both profiles pooled
+
+Profiles as assumed: they differ in cutpoints, style and loading.
+
+{table("profiles")}
+
+### Same loading, different response style only
+
+Both profiles get loading 0.7, so the construct and its measurement are the same.
+Only the cutpoints and the response style differ.
+
+{table("profiles_same_loading")}
+
+With identical loadings, lima still beats california by {
+        gap("profiles_same_loading", marketing):.2f} on Marketing Sensorial and by {
+        gap("profiles_same_loading", as_is):.2f} on Satisfaccion as is. Alpha moved and nothing
+about the construct did.
+
+### Sensitivity to the strength of the style
+
+One style at a time (the other is zero), the profile's own cutpoints and loading.
+Strength is the standard deviation of the respondent trait. The plot is
+`plots/response_style.png`.
+
+{sweep}
+
+Acquiescence adds one factor shared by all items, whatever they say, so on a
+scale where every item points the same way it raises alpha: Marketing Sensorial
+goes from {sensitivity(marketing, "lima", "acquiescence", 0.0):.2f} to {
+        sensitivity(marketing, "lima", "acquiescence", 1.0):.2f} for lima, and Satisfaccion as is
+from {sensitivity(as_is, "lima", "acquiescence", 0.0):.2f} to {
+        sensitivity(as_is, "lima", "acquiescence", 1.0):.2f}, although its three dimensions
+still run against each other. After reverse-scoring apatico and problematico the
+shared factor points in opposite directions on the two halves and alpha falls, from {
+        sensitivity(recoded, "lima", "acquiescence", 0.0):.2f} to {
+        sensitivity(
+            recoded, "lima", "acquiescence", 1.0
+        ):.2f} for lima. Extreme responding moves alpha
+less than acquiescence in these runs.
+
+### What alpha can and cannot tell here
+
+Alpha computed within each group does detect a group whose items hang together
+less: california Marketing Sensorial sits at {at("profiles", marketing, "california"):.2f} against {
+        at("profiles", marketing, "lima"):.2f} for lima. Pooled it is {
+        at("profiles", marketing, "pooled"):.2f}, so the pooled value hides the weaker group.
+
+Alpha cannot tell why a group scores high or low. In the same-loading runs the
+construct is identical and alpha still differs, because answer habits add or
+remove shared variance. Lima passes 0.7 on Satisfaccion as is ({
+        at("profiles", as_is, "lima"):.2f}) and california does not ({
+        at("profiles", as_is, "california"):.2f}) even though the scale pools
+dimensions that oppose each other. A pass can come from acquiescence, not from
+measuring one trait well. Pooled alpha also hides that the groups use the scale
+differently: it is one number from one covariance matrix, and a mixture of groups
+with different cutpoints and loadings gives a matrix that belongs to neither.
+
+Telling a real difference in the construct from a difference in how the groups
+answer takes a multi-group invariance test (multi-group confirmatory factor
+analysis). It asks, in order, whether the groups share the factor structure
+(configural), the loadings (metric) and the item intercepts or thresholds
+(scalar). Only with scalar invariance can the groups' scores be pooled or
+compared. This lab does not run one, because it needs structural equation
+modelling tools beyond its dependencies.
+"""
 
 
 def findings_text(results, reps):
@@ -314,14 +471,17 @@ true value still comes with an interval that reaches well below 0.7, so a point
 estimate above 0.7 from a small sample does not show the scale is reliable. Report
 the interval, not only the point value. Percentile intervals also tend to cover
 slightly less than 95% in small samples.
-"""
+
+{profile_findings(results)}"""
 
 
 def write_findings(results, reps, path):
     """Wrap prose at 80 columns, as prettier does, so reformatting leaves the file alone."""
     blocks = findings_text(results, reps).strip().split("\n\n")
     wrapped = [
-        block if block.startswith(("|", "#")) else textwrap.fill(" ".join(block.split()), 80)
+        block
+        if block.startswith(("|", "#"))
+        else textwrap.fill(" ".join(block.split()), 80, break_on_hyphens=False)
         for block in blocks
     ]
     Path(path).write_text("\n\n".join(wrapped) + "\n")
