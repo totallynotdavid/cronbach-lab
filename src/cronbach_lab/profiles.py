@@ -18,8 +18,8 @@ class Profile:
     # Extreme responding stretches scores outward, so the realised shares differ:
     # see `realised_shares`.
     probs: tuple
-    extreme: float  # extreme response style: sd of the log gain, see generate.latent_items
-    acquiescence: float  # sd of the tendency to agree, see generate.latent_items
+    extreme: float  # extreme response style: sd of the log gain, see generate.latent_draw
+    acquiescence: float  # sd of the tendency to agree, see generate.latent_draw
     # Nominal loading, the same for every item. It is the item-trait correlation only
     # without response styles: see `item_trait_correlation`.
     loading: float = 0.7
