@@ -5,6 +5,7 @@ setting replicated `reps` times, each replicate a fresh simulated sample.
 """
 
 from dataclasses import replace
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -293,35 +294,53 @@ def bootstrap_interval(reps, rng):
 STYLE_STRENGTHS = [0.0, 0.25, 0.5, 0.75, 1.0]
 
 
+class Scale(NamedTuple):
+    factor: np.ndarray  # factor of each item
+    corr: np.ndarray  # correlation between the factors' traits
+    reverse: np.ndarray | None  # items answered on the flipped scale
+    recoded: bool  # whether the analyst scores the reverse-keyed items back
+
+
 def profile_scales():
-    """Scale name -> (factor of each item, factor correlation, items the analyst recodes)."""
+    """Marketing Sensorial, and Satisfaccion with the same answers scored as is and recoded."""
     satisfaccion = factor_index(SATISFACCION)
+    against = satisfaccion > 0  # apatico and problematico items are worded against satisfaccion
+    # SATISFACCION_CORR relates the behaviours. These items are answered on the flipped
+    # scale, so the traits are taken in the direction of satisfaccion: flipping a trait
+    # flips the sign of its correlations. Recoding then gives positively correlated items.
+    sign = np.where(np.arange(len(SATISFACCION)) > 0, -1, 1)
+    corr = SATISFACCION_CORR * np.outer(sign, sign)
     return {
-        "marketing sensorial": (factor_index(MARKETING_SENSORIAL), marketing_corr(0.3), None),
-        "satisfaccion as is": (satisfaccion, SATISFACCION_CORR, None),
-        # Apatico and problematico (factors 1 and 2) are scored backwards.
-        "satisfaccion recoded": (satisfaccion, SATISFACCION_CORR, satisfaccion > 0),
+        "marketing sensorial": Scale(
+            factor_index(MARKETING_SENSORIAL), marketing_corr(0.3), None, False
+        ),
+        "satisfaccion as is": Scale(satisfaccion, corr, against, False),
+        "satisfaccion recoded": Scale(satisfaccion, corr, against, True),
     }
 
 
-def profile_draw(profiles, scale):
-    """draw(rng): DEFAULT_N respondents from each profile, stacked into one sample."""
-    factor, factor_corr, recode = scale
+def profile_draw(profiles, scale, n=DEFAULT_N):
+    """draw(rng): n respondents from each profile, stacked into one sample.
+
+    The reverse-keyed items are generated as such, so acquiescence pulls them as the
+    generator documents, and are scored back when the scale is recoded.
+    """
 
     def draw(r):
         samples = [
             simulate_profile(
                 p,
-                DEFAULT_N,
-                equal_loadings(len(factor), p.loading),
+                n,
+                equal_loadings(len(scale.factor), p.loading),
                 r,
-                factor=factor,
-                factor_corr=factor_corr,
+                factor=scale.factor,
+                factor_corr=scale.corr,
+                reverse=scale.reverse,
             )
             for p in profiles
         ]
         x = np.vstack(samples)
-        return x if recode is None else reverse_score(x, recode)
+        return reverse_score(x, scale.reverse) if scale.recoded else x
 
     return draw
 
@@ -335,7 +354,7 @@ def profile_rows(scenario, groups, reps, rng):
             profile_draw(profiles, scale),
             reps,
             rng,
-            k=len(scale[0]),
+            k=len(scale.factor),
             n=DEFAULT_N * len(profiles),
             scale=name,
             profile=label,
@@ -370,7 +389,7 @@ def response_style(reps, rng):
             ),
             reps,
             rng,
-            k=len(scale[0]),
+            k=len(scale.factor),
             n=DEFAULT_N,
             scale=name,
             profile=p.name,
