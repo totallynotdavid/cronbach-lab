@@ -250,10 +250,9 @@ as a keyed one (an assumption). Cells show mean alpha and the share of runs >=
 
 A profile's cutpoints cut each item as worded, before the flip. The apatico and
 problematico items are answered flipped, so on them the answered shares are the
-profile's shares in reverse order: lima gives 44% Nunca and 8% Siempre there,
-the opposite of its keyed items. Lima's higher share of 4-5 answers therefore
-holds for Marketing Sensorial and for entusiasta, not for every Satisfaccion
-item as answered.
+profile's shares in reverse order. Lima still has more 4-5 answers on those
+mirrored items than california (13.0% against 12.1%). What differs is the other
+end: lima piles up at 1 (44% against 22%).
 
 ### Alpha per profile, and both profiles pooled
 
@@ -337,3 +336,104 @@ analysis). It asks, in order, whether the groups share the factor structure
 (scalar). Only with scalar invariance can the groups' scores be pooled or
 compared. This lab does not run one, because it needs structural equation
 modelling tools beyond its dependencies.
+
+## 10. Small groups of 30 to 50, against the population alpha
+
+Everything here is an assumption of the simulation, like section 9. Each group
+is a profile (lima, california) or an age group (loadings 0.8, 0.7, 0.5 and 0.3,
+as in section 6, symmetric answers, no response styles), scored on Marketing
+Sensorial and on Satisfaccion recoded. Each is drawn at n=30, 40, 50 and 200
+respondents, 1000 replicates per row. "Population alpha" is the alpha of the
+same setting at 200000 respondents, one draw.
+
+A false pass is a run with alpha >= 0.7 in a group whose population alpha is
+below it. A false fail is a run below 0.7 in a group whose population alpha is
+0.7 or more. A group is on one side, so the other column shows a dash. The
+interval is the 95% percentile bootstrap (500 resamples). To keep the run short
+it is computed on the first 100 of the 1000 replicates of each row, so its width
+and coverage rest on 100 samples per row and are noisier than the alpha columns.
+The plot is `plots/small_groups.png`.
+
+### Marketing Sensorial
+
+| group      | n   | population alpha | mean alpha | 2.5-97.5% band | runs >= 0.7 | false pass | false fail | median interval width | interval covers |
+| ---------- | --- | ---------------- | ---------- | -------------- | ----------- | ---------- | ---------- | --------------------- | --------------- |
+| lima       | 30  | 0.87             | 0.86       | 0.75 to 0.93   | 99%         | -          | 1%         | 0.18                  | 92%             |
+| lima       | 40  | 0.87             | 0.87       | 0.77 to 0.93   | 100%        | -          | 0%         | 0.15                  | 93%             |
+| lima       | 50  | 0.87             | 0.87       | 0.78 to 0.92   | 100%        | -          | 0%         | 0.14                  | 81%             |
+| lima       | 200 | 0.87             | 0.87       | 0.84 to 0.90   | 100%        | -          | 0%         | 0.06                  | 92%             |
+| california | 30  | 0.74             | 0.72       | 0.52 to 0.84   | 63%         | -          | 37%        | 0.33                  | 91%             |
+| california | 40  | 0.74             | 0.72       | 0.56 to 0.83   | 68%         | -          | 32%        | 0.27                  | 92%             |
+| california | 50  | 0.74             | 0.73       | 0.58 to 0.83   | 71%         | -          | 29%        | 0.23                  | 96%             |
+| california | 200 | 0.74             | 0.74       | 0.68 to 0.79   | 88%         | -          | 12%        | 0.11                  | 95%             |
+| 18-29      | 30  | 0.82             | 0.81       | 0.68 to 0.89   | 96%         | -          | 4%         | 0.22                  | 91%             |
+| 18-29      | 40  | 0.82             | 0.81       | 0.71 to 0.88   | 98%         | -          | 2%         | 0.17                  | 91%             |
+| 18-29      | 50  | 0.82             | 0.81       | 0.71 to 0.88   | 99%         | -          | 1%         | 0.15                  | 93%             |
+| 18-29      | 200 | 0.82             | 0.82       | 0.78 to 0.85   | 100%        | -          | 0%         | 0.07                  | 92%             |
+| 30-39      | 30  | 0.77             | 0.75       | 0.58 to 0.85   | 78%         | -          | 22%        | 0.26                  | 90%             |
+| 30-39      | 40  | 0.77             | 0.76       | 0.61 to 0.85   | 84%         | -          | 16%        | 0.22                  | 92%             |
+| 30-39      | 50  | 0.77             | 0.76       | 0.64 to 0.84   | 86%         | -          | 14%        | 0.20                  | 92%             |
+| 30-39      | 200 | 0.77             | 0.76       | 0.71 to 0.81   | 99%         | -          | 1%         | 0.09                  | 98%             |
+| 40-49      | 30  | 0.60             | 0.57       | 0.25 to 0.75   | 12%         | 12%        | -          | 0.49                  | 91%             |
+| 40-49      | 40  | 0.60             | 0.58       | 0.35 to 0.74   | 9%          | 9%         | -          | 0.38                  | 94%             |
+| 40-49      | 50  | 0.60             | 0.59       | 0.36 to 0.73   | 7%          | 7%         | -          | 0.34                  | 90%             |
+| 40-49      | 200 | 0.60             | 0.60       | 0.50 to 0.67   | 0%          | 0%         | -          | 0.16                  | 94%             |
+| 50+        | 30  | 0.34             | 0.30       | -0.20 to 0.60  | 0%          | 0%         | -          | 0.77                  | 95%             |
+| 50+        | 40  | 0.34             | 0.31       | -0.06 to 0.57  | 0%          | 0%         | -          | 0.64                  | 90%             |
+| 50+        | 50  | 0.34             | 0.32       | 0.00 to 0.55   | 0%          | 0%         | -          | 0.55                  | 93%             |
+| 50+        | 200 | 0.34             | 0.33       | 0.19 to 0.45   | 0%          | 0%         | -          | 0.27                  | 96%             |
+
+### Satisfaccion recoded
+
+| group      | n   | population alpha | mean alpha | 2.5-97.5% band | runs >= 0.7 | false pass | false fail | median interval width | interval covers |
+| ---------- | --- | ---------------- | ---------- | -------------- | ----------- | ---------- | ---------- | --------------------- | --------------- |
+| lima       | 30  | 0.81             | 0.79       | 0.63 to 0.89   | 89%         | -          | 11%        | 0.24                  | 93%             |
+| lima       | 40  | 0.81             | 0.80       | 0.67 to 0.89   | 93%         | -          | 7%         | 0.21                  | 91%             |
+| lima       | 50  | 0.81             | 0.80       | 0.68 to 0.88   | 95%         | -          | 5%         | 0.19                  | 84%             |
+| lima       | 200 | 0.81             | 0.81       | 0.76 to 0.85   | 100%        | -          | 0%         | 0.09                  | 88%             |
+| california | 30  | 0.77             | 0.75       | 0.53 to 0.86   | 77%         | -          | 23%        | 0.28                  | 94%             |
+| california | 40  | 0.77             | 0.75       | 0.60 to 0.85   | 83%         | -          | 17%        | 0.24                  | 87%             |
+| california | 50  | 0.77             | 0.76       | 0.63 to 0.84   | 85%         | -          | 15%        | 0.21                  | 92%             |
+| california | 200 | 0.77             | 0.76       | 0.71 to 0.81   | 99%         | -          | 1%         | 0.10                  | 94%             |
+| 18-29      | 30  | 0.89             | 0.88       | 0.79 to 0.93   | 100%        | -          | 0%         | 0.14                  | 93%             |
+| 18-29      | 40  | 0.89             | 0.88       | 0.81 to 0.93   | 100%        | -          | 0%         | 0.11                  | 94%             |
+| 18-29      | 50  | 0.89             | 0.88       | 0.82 to 0.92   | 100%        | -          | 0%         | 0.10                  | 89%             |
+| 18-29      | 200 | 0.89             | 0.89       | 0.86 to 0.91   | 100%        | -          | 0%         | 0.05                  | 96%             |
+| 30-39      | 30  | 0.84             | 0.83       | 0.70 to 0.90   | 98%         | -          | 3%         | 0.19                  | 90%             |
+| 30-39      | 40  | 0.84             | 0.83       | 0.73 to 0.89   | 99%         | -          | 1%         | 0.16                  | 86%             |
+| 30-39      | 50  | 0.84             | 0.83       | 0.75 to 0.89   | 100%        | -          | 0%         | 0.13                  | 96%             |
+| 30-39      | 200 | 0.84             | 0.84       | 0.80 to 0.87   | 100%        | -          | 0%         | 0.06                  | 92%             |
+| 40-49      | 30  | 0.69             | 0.67       | 0.43 to 0.80   | 43%         | 43%        | -          | 0.40                  | 91%             |
+| 40-49      | 40  | 0.69             | 0.67       | 0.46 to 0.79   | 42%         | 42%        | -          | 0.29                  | 92%             |
+| 40-49      | 50  | 0.69             | 0.68       | 0.53 to 0.79   | 43%         | 43%        | -          | 0.26                  | 97%             |
+| 40-49      | 200 | 0.69             | 0.69       | 0.62 to 0.74   | 38%         | 38%        | -          | 0.13                  | 94%             |
+| 50+        | 30  | 0.42             | 0.37       | -0.09 to 0.64  | 0%          | 0%         | -          | 0.69                  | 92%             |
+| 50+        | 40  | 0.42             | 0.38       | 0.01 to 0.61   | 0%          | 0%         | -          | 0.59                  | 90%             |
+| 50+        | 50  | 0.42             | 0.40       | 0.10 to 0.60   | 0%          | 0%         | -          | 0.51                  | 97%             |
+| 50+        | 200 | 0.42             | 0.41       | 0.27 to 0.53   | 0%          | 0%         | -          | 0.23                  | 95%             |
+
+### What a small group can show
+
+A group of 50 reads a little low. Its mean alpha is under the population alpha
+in 12 of the 12 settings, by at most 0.02, and the spread is wide: the middle
+95% of alpha spans 0.21 at n=50 (median over the settings), against 0.10 at
+n=200.
+
+How often a weak group looks fine by chance depends on how close it is to 0.7.
+The worst false pass at n=50 is 40-49 on satisfaccion recoded, with population
+alpha 0.69: 43% of samples reach 0.7. A group that close to the threshold passes
+often by chance, and more respondents do not remove that: at n=200 the same
+group still passes 38% of the time. A group far below, such as the 50+ group,
+almost never passes. The reverse also happens: the worst false fail at n=50 is
+california on marketing sensorial, population alpha 0.74, where 29% of samples
+fall below 0.7 although the group's population alpha is above it. At n=200 that
+falls to 12%.
+
+### The bootstrap interval
+
+The median 95% interval is 0.21 wide at n=50 (median over the settings) and 0.10
+at n=200. Pooled over the 12 settings of each size (1200 intervals each), the
+share of intervals that contain the population alpha is 91.9% at n=30, 91.0% at
+n=40, 91.7% at n=50, 93.8% at n=200. Yes: coverage falls below 95% at n=30 and
+n=40, by more than the sampling error of this estimate (about 1.2%). It is also
+below 95% at n=50, so the shortfall is not limited to the smallest groups.
