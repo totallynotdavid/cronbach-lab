@@ -8,10 +8,9 @@ so every continuous item has variance 1, the loading is the item-trait
 correlation, and two items on the same factor correlate loading_i * loading_j.
 The continuous score is then cut into the categories 1..5.
 
-That holds without response styles. Acquiescence adds a shared tendency and divides
-each item by sqrt(1 + (pull * acquiescence)**2), so the item-trait correlation falls
-to loading / sqrt(1 + acquiescence**2) on a keyed item (pull 1): the loading is then
-only nominal.
+That holds without response styles. Acquiescence and extreme responding rescale the
+score, so with them the item-trait correlation is below the loading, which is then
+only nominal. `profiles.item_trait_correlation` measures the correlation.
 """
 
 from statistics import NormalDist
@@ -44,7 +43,12 @@ def equicorrelated(n_factors, r):
     return np.full((n_factors, n_factors), r) + (1 - r) * np.eye(n_factors)
 
 
-def latent_items(
+def latent_items(n, loadings, rng, **kwargs):
+    """Continuous item scores, shape (n, k). The arguments are those of `latent_draw`."""
+    return latent_draw(n, loadings, rng, **kwargs)[1]
+
+
+def latent_draw(
     n,
     loadings,
     rng,
@@ -56,7 +60,7 @@ def latent_items(
     acquiescence=0.0,
     extreme=0.0,
 ):
-    """Continuous item scores, shape (n, k).
+    """The traits theta, shape (n, factors), and the continuous item scores, shape (n, k).
 
     loadings: (k,), or (groups, k) to give each group its own loadings.
     factor: (k,) factor index of each item; default is one factor.
@@ -99,7 +103,7 @@ def latent_items(
         x = (x + tendency[:, None] * pull) / np.sqrt(1 + (pull * acquiescence) ** 2)
     if extreme:
         x = x * np.exp(extreme * rng.standard_normal(n))[:, None]
-    return x
+    return theta, x
 
 
 def discretize(x, cutpoints=SYMMETRIC):

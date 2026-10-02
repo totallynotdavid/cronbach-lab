@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .generate import cutpoints_from_probs, simulate
+from .generate import cutpoints_from_probs, latent_draw, simulate
 
 
 @dataclass(frozen=True)
@@ -21,13 +21,8 @@ class Profile:
     extreme: float  # extreme response style: sd of the log gain, see generate.latent_items
     acquiescence: float  # sd of the tendency to agree, see generate.latent_items
     # Nominal loading, the same for every item. It is the item-trait correlation only
-    # without acquiescence: see `realised_loading`.
+    # without response styles: see `item_trait_correlation`.
     loading: float = 0.7
-
-    @property
-    def realised_loading(self):
-        """Item-trait correlation of a keyed item once acquiescence has been rescaled out."""
-        return self.loading / np.sqrt(1 + self.acquiescence**2)
 
 
 PROFILES = {
@@ -57,3 +52,18 @@ def realised_shares(profile, n=200_000, seed=0):
     """Share of answers 1..5 on a keyed item once the styles have acted."""
     x = simulate_profile(profile, n, np.array([profile.loading]), np.random.default_rng(seed))
     return np.bincount(x.ravel(), minlength=6)[1:] / x.size
+
+
+def item_trait_correlation(profile, n=200_000, seed=0):
+    """Correlation of a keyed item's continuous score with its own trait, styles on.
+
+    Measured on a large simulated sample, before the score is cut into categories.
+    """
+    theta, x = latent_draw(
+        n,
+        np.array([profile.loading]),
+        np.random.default_rng(seed),
+        extreme=profile.extreme,
+        acquiescence=profile.acquiescence,
+    )
+    return np.corrcoef(theta[:, 0], x[:, 0])[0, 1]
