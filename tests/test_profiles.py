@@ -78,6 +78,24 @@ def test_profile_cutpoints_give_its_answer_shares_even_with_acquiescence():
         assert shares == pytest.approx(expected, abs=0.01)
 
 
+@pytest.mark.parametrize("name", ["lima", "california"])
+def test_realised_loading_is_the_item_trait_correlation_under_acquiescence(name):
+    profile = replace(PROFILES[name], extreme=0.0, loading=0.7)
+    seed = 8
+    x = latent_items(
+        200_000,
+        np.array([profile.loading]),
+        np.random.default_rng(seed),
+        acquiescence=profile.acquiescence,
+    )
+    # The first draw of latent_items is theta.
+    theta = np.random.default_rng(seed).multivariate_normal([0.0], [[1.0]], size=200_000)
+    assert np.corrcoef(x[:, 0], theta[:, 0])[0, 1] == pytest.approx(
+        profile.realised_loading, abs=0.01
+    )
+    assert profile.realised_loading < profile.loading
+
+
 def test_style_scores_have_unit_variance_on_every_item():
     reverse = np.array([False, False, True, True])
     x = latent_items(

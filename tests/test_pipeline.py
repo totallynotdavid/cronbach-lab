@@ -35,12 +35,13 @@ def test_run_writes_csv_plots_and_findings(tmp_path):
         "profiles",
         "profiles_same_loading",
         "response_style",
+        "profiles_style_split",
     }
     assert results.share_ge_0_7.between(0, 1).all()
     assert (results.p2_5 <= results.p97_5).all()
 
     pngs = sorted(p.name for p in (out / "plots").glob("*.png"))
-    assert "loading_items.png" in pngs and len(pngs) == 11
+    assert "loading_items.png" in pngs and len(pngs) == 12
     assert all((out / "plots" / p).stat().st_size > 1000 for p in pngs)
 
     assert len(list((out / "xlsx").glob("*_alpha*.xlsx"))) == 14
