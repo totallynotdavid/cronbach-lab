@@ -6,13 +6,18 @@ real survey or taken from a study of Lima or California respondents.
 
 from dataclasses import dataclass
 
+import numpy as np
+
 from .generate import cutpoints_from_probs, simulate
 
 
 @dataclass(frozen=True)
 class Profile:
     name: str
-    probs: tuple  # share of answers in categories 1..5
+    # Share of answers in categories 1..5 that the cutpoints give before the styles act.
+    # Extreme responding stretches scores outward, so the realised shares differ:
+    # see `realised_shares`.
+    probs: tuple
     extreme: float  # extreme response style: sd of the log gain, see generate.latent_items
     acquiescence: float  # sd of the tendency to agree, see generate.latent_items
     loading: float = 0.7  # item-trait correlation, the same for every item
@@ -39,3 +44,9 @@ def simulate_profile(profile, n, loadings, rng, **kwargs):
         acquiescence=profile.acquiescence,
         **kwargs,
     )
+
+
+def realised_shares(profile, n=200_000, seed=0):
+    """Share of answers 1..5 on a keyed item once the styles have acted."""
+    x = simulate_profile(profile, n, np.array([profile.loading]), np.random.default_rng(seed))
+    return np.bincount(x.ravel(), minlength=6)[1:] / x.size
