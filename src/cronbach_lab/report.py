@@ -10,7 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .profiles import PROFILES, realised_shares
+from .profiles import PROFILES, item_trait_correlation, realised_shares
 from .scenarios import DEFAULT_N, ITEM_COUNTS, SAME_LOADING, THRESHOLD
 
 
@@ -171,7 +171,7 @@ def profile_findings(results):
                 p.extreme,
                 p.acquiescence,
                 p.loading,
-                f"{p.realised_loading:.2f}",
+                f"{item_trait_correlation(p):.2f}",
             ]
             for p in PROFILES.values()
         ],
@@ -215,7 +215,7 @@ def profile_findings(results):
     gap_cutpoints_only = split_gap("cutpoints only")
 
     same_loading_r = {
-        p.name: replace(p, loading=SAME_LOADING).realised_loading for p in PROFILES.values()
+        p.name: item_trait_correlation(replace(p, loading=SAME_LOADING)) for p in PROFILES.values()
     }
     lima_answered = realised_shares(PROFILES["lima"])[::-1]
     lima_nunca, lima_siempre = 100 * lima_answered[0], 100 * lima_answered[4]
@@ -248,10 +248,10 @@ responding stretches each respondent's score, so more answers fall on 1 and 5
 and the realised shares (a keyed item, a large simulated sample) differ from the
 cutpoint ones. Acquiescence is rescaled and leaves the shares alone.
 
-The loading is nominal. It is the item-trait correlation only without
-acquiescence. With it, each item is divided by sqrt(1 + (pull * a)^2), where a
-is the acquiescence sd and the pull is 1 on a keyed item, so a keyed item
-correlates with its trait loading / sqrt(1 + a^2). That is the last column.
+The loading is nominal. It is the item-trait correlation only without response
+styles. The last column is measured: the correlation of a keyed item's
+continuous score with its own trait, before it is cut, in a large simulated
+sample with the profile's styles on.
 
 Three scales are scored, each with {DEFAULT_N} respondents per profile.
 Marketing Sensorial is pooled as 15 items (dimensions correlated 0.3).
@@ -279,8 +279,8 @@ Profiles as assumed: they differ in cutpoints, style and loading.
 
 Both profiles get the nominal loading {SAME_LOADING}, so the construct is the same. Each keeps its
 own cutpoints and its own response style. The nominal loading is shared, the
-measurement is not: with acquiescence the item-trait correlation of a keyed item is
-{same_loading_r["lima"]:.2f} for lima and {same_loading_r["california"]:.2f} for california.
+measurement is not: measured with the styles on, the item-trait correlation of a
+keyed item is {same_loading_r["lima"]:.2f} for lima and {same_loading_r["california"]:.2f} for california.
 
 {table("profiles_same_loading")}
 
@@ -303,7 +303,8 @@ Strength is the standard deviation of the respondent trait. The plot is
 {sweep}
 
 Acquiescence adds one factor to every answer as given, whatever the item says,
-so it raises alpha on a scale scored from those answers. Marketing Sensorial,
+so it raises alpha when the answers are scored as given, without
+reverse-scoring. Marketing Sensorial,
 where every item points the same way, goes from {marketing_off:.2f} to {marketing_on:.2f} for lima.
 Satisfaccion as is, whose dimensions run against each other, also rises, from
 {as_is_off:.2f} to {as_is_on:.2f}, because the raw answers all carry the shared factor with the
