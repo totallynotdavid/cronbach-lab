@@ -8,7 +8,17 @@ import pandas as pd
 from .alpha import cronbach_alpha, standardized_alpha
 from .generate import RESPONSE_SHAPES, cutpoints_from_probs, simulate
 from .profiles import PROFILES, simulate_profile
-from .scenarios import AGE_GROUP_SIZE, AGE_LOADINGS, DEFAULT_K, equal_loadings
+from .scenarios import (
+    AGE_GROUP_SIZE,
+    AGE_LOADINGS,
+    DEFAULT_K,
+    SMALL_SCALES,
+    WORKBOOK_N,
+    equal_loadings,
+    profile_draw,
+    profile_scales,
+    small_group_profiles,
+)
 from .survey import (
     AGE_GROUPS,
     MARKETING_SENSORIAL,
@@ -82,14 +92,33 @@ def build_age_dataset(rng):
     return simulate(len(group), loadings, rng, group=group), np.array(AGE_GROUPS)[group]
 
 
+def build_small_group_datasets(rng):
+    """One sample of WORKBOOK_N respondents per small group and scale."""
+    scales = profile_scales()
+    items = {
+        "marketing sensorial": item_names(MARKETING_SENSORIAL),
+        "satisfaccion recoded": item_names(SATISFACCION),
+    }
+    return {
+        "small_groups_{}_{}_n{}".format(
+            scale.replace(" ", "_"), label.replace("+", "plus"), WORKBOOK_N
+        ): (profile_draw([profile], scales[scale], WORKBOOK_N)(rng), items[scale])
+        for scale in SMALL_SCALES
+        for label, profile in small_group_profiles().items()
+    }
+
+
 def draw_datasets(seed=1):
     """The R cross-check datasets and the age-group dataset, from one seeded RNG.
 
     The CSVs and the workbooks are written from the same draw, so each workbook
-    holds the answers of the CSV with the same name.
+    holds the answers of the CSV with the same name. The small groups are drawn last,
+    so no earlier dataset depends on them.
     """
     rng = np.random.default_rng(seed)
-    return build_datasets(rng), build_age_dataset(rng)
+    datasets = build_datasets(rng)
+    age_dataset = build_age_dataset(rng)
+    return datasets | build_small_group_datasets(rng), age_dataset
 
 
 def write_datasets(out_dir, datasets):

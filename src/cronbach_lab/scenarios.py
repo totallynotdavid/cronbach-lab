@@ -12,7 +12,7 @@ import pandas as pd
 
 from .alpha import alpha_if_dropped, bootstrap_ci, cronbach_alpha, standardized_alpha
 from .generate import RESPONSE_SHAPES, cutpoints_from_probs, reverse_score, simulate
-from .profiles import PROFILES, simulate_profile
+from .profiles import PROFILES, Profile, simulate_profile
 from .survey import (
     AGE_GROUPS,
     MARKETING_SENSORIAL,
@@ -36,23 +36,31 @@ AGE_LOADINGS = [0.8, 0.7, 0.5, 0.3]
 SAME_LOADING = 0.7  # the loading both profiles share in the same-loading runs
 
 
-def cell(scenario, setting, draw, reps, rng, planted=None, boot=0, truth=None, **cols):
+def cell(
+    scenario, setting, draw, reps, rng, planted=None, boot=0, boot_reps=None, truth=None, **cols
+):
     """Replicate one setting and summarize raw alpha over the replicates.
 
     draw(rng) returns one (n, k) response matrix.
     planted: column of a known bad item. Adds how often alpha-if-dropped flags it.
-    boot, truth: bootstrap resamples per replicate, and the population alpha
-        the interval should cover.
+    boot, boot_reps, truth: bootstrap resamples per replicate, how many replicates
+        get an interval (the first ones; default all), and the population alpha.
+        The interval should cover the population alpha, and a group whose alpha
+        is below the threshold should not pass: `false_pass` and `false_fail`
+        are the shares of replicates on the wrong side, 0 when the population
+        alpha is on the other side.
     """
+    boot_reps = reps if boot_reps is None else boot_reps
+    truth = None if truth is None else float(truth)
     records = []
-    for _ in range(reps):
+    for i in range(reps):
         x = draw(rng)
         record = {"raw": cronbach_alpha(x), "std": standardized_alpha(x)}
         if planted is not None:
             dropped = alpha_if_dropped(x)
             record["flagged"] = dropped.argmax() == planted
             record["dropped"] = dropped[planted]
-        if boot:
+        if boot and i < boot_reps:
             record["ci_lo"], record["ci_hi"] = bootstrap_ci(x, rng, boot)
         records.append(record)
     s = pd.DataFrame(records)
@@ -68,11 +76,21 @@ def cell(scenario, setting, draw, reps, rng, planted=None, boot=0, truth=None, *
     }
     if planted is not None:
         row |= {"flag_rate": s.flagged.mean(), "mean_alpha_dropped": s.dropped.mean()}
-    if boot:
+    if truth is not None:
+        passed = (s.raw >= THRESHOLD).mean()
         row |= {
-            "mean_ci_width": (s.ci_hi - s.ci_lo).mean(),
-            "share_ci_lower_ge_0_7": (s.ci_lo >= THRESHOLD).mean(),
-            "ci_coverage": ((s.ci_lo <= truth) & (truth <= s.ci_hi)).mean(),
+            "true_alpha": truth,
+            "false_pass": passed if truth < THRESHOLD else 0.0,
+            "false_fail": 1 - passed if truth >= THRESHOLD else 0.0,
+        }
+    if boot:
+        b = s.dropna(subset=["ci_lo"])
+        row |= {
+            "ci_reps": len(b),
+            "mean_ci_width": (b.ci_hi - b.ci_lo).mean(),
+            "median_ci_width": (b.ci_hi - b.ci_lo).median(),
+            "share_ci_lower_ge_0_7": (b.ci_lo >= THRESHOLD).mean(),
+            "ci_coverage": ((b.ci_lo <= truth) & (truth <= b.ci_hi)).mean(),
         }
     return row
 
@@ -431,6 +449,59 @@ def response_style(reps, rng):
     ]
 
 
+SMALL_SIZES = [30, 40, 50, DEFAULT_N]
+SMALL_SCALES = ["marketing sensorial", "satisfaccion recoded"]
+SMALL_BOOT = 500
+POPULATION_N = 200_000
+# The sample the workbooks hold: the size of a small group.
+WORKBOOK_N = 50
+
+
+def small_group_profiles():
+    """Lima and california as assumed, then each age group: symmetric answers, no styles.
+
+    An age group takes the loading of the age-group scenario for every item.
+    """
+    symmetric = tuple(RESPONSE_SHAPES["symmetric"])
+    ages = {
+        label: Profile(label, symmetric, extreme=0.0, acquiescence=0.0, loading=loading)
+        for label, loading in zip(AGE_GROUPS, AGE_LOADINGS)
+    }
+    return dict(PROFILES) | ages
+
+
+def small_groups(reps, rng):
+    """Small groups at 30, 40, 50 and 200 respondents against the population alpha.
+
+    The population alpha is that of the same setting at 200000 respondents. The
+    bootstrap runs on a tenth of the replicates to keep the run short.
+    """
+    scales = profile_scales()
+    rows = []
+    for name in SMALL_SCALES:
+        scale = scales[name]
+        for label, profile in small_group_profiles().items():
+            truth = cronbach_alpha(profile_draw([profile], scale, POPULATION_N)(rng))
+            rows += [
+                cell(
+                    "small_groups",
+                    f"{name}, {label}, n={n}",
+                    profile_draw([profile], scale, n),
+                    reps,
+                    rng,
+                    boot=SMALL_BOOT,
+                    boot_reps=max(reps // 10, 1),
+                    truth=truth,
+                    k=len(scale.factor),
+                    n=n,
+                    scale=name,
+                    group=label,
+                )
+                for n in SMALL_SIZES
+            ]
+    return rows
+
+
 SCENARIOS = [
     loading_items,
     sample_size,
@@ -444,6 +515,7 @@ SCENARIOS = [
     profiles_same_loading,
     response_style,
     profiles_style_split,
+    small_groups,
 ]
 
 
