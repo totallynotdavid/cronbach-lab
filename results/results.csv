@@ -183,3 +183,7 @@ response_style,"satisfaccion recoded, california, acquiescence=0.25",13,200,,100
 response_style,"satisfaccion recoded, california, acquiescence=0.5",13,200,,1000,0.7311565544208342,0.6660615832444781,0.7814966202579224,0.851,0.7310611283968993,,,,,,satisfaccion recoded,california,acquiescence,0.5
 response_style,"satisfaccion recoded, california, acquiescence=0.75",13,200,,1000,0.6870207894373319,0.6160011237861358,0.7444906180954955,0.364,0.6868893269192728,,,,,,satisfaccion recoded,california,acquiescence,0.75
 response_style,"satisfaccion recoded, california, acquiescence=1.0",13,200,,1000,0.631034565027421,0.5387597888463183,0.70033563914754,0.027,0.6306846862681068,,,,,,satisfaccion recoded,california,acquiescence,1.0
+profiles_style_split,"marketing sensorial, lima, style only",15,200,,1000,0.8713748211404815,0.83776279230718,0.8994402738711028,1.0,0.8713838601704013,,,,,,marketing sensorial,lima,,
+profiles_style_split,"marketing sensorial, california, style only",15,200,,1000,0.7936536256099703,0.7440045485155287,0.8340830122930226,0.999,0.7936046719565063,,,,,,marketing sensorial,california,,
+profiles_style_split,"marketing sensorial, lima, cutpoints only",15,200,,1000,0.7392188079390066,0.6753127756167883,0.7891951290008815,0.904,0.7392322112534838,,,,,,marketing sensorial,lima,,
+profiles_style_split,"marketing sensorial, california, cutpoints only",15,200,,1000,0.7586181384600788,0.7021240568183978,0.8033654015128706,0.977,0.7585456968460297,,,,,,marketing sensorial,california,,
