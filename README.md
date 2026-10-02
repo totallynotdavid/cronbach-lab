@@ -85,16 +85,19 @@ group and one pooled: `age_groups_pooled_alpha...`, `age_groups_18-29_alpha...`,
 
 Respondent trait `theta` (one per factor); item = discretize(`loading * theta` +
 noise) onto 1-5 with configurable cutpoints, so answers can be skewed or hit the
-ceiling. Items have unit variance before cutting, so the loading is the
-item-trait correlation. Optional per-age-group shifts in theta or loadings,
-reverse-keyed items, one factor per dimension, and bad respondents (random
-answers, straight-lining). The RNG is seeded.
+ceiling. Items have unit variance before cutting, so without response styles the
+loading is the item-trait correlation. Optional per-age-group shifts in theta or
+loadings, reverse-keyed items, one factor per dimension, and bad respondents
+(random answers, straight-lining). The RNG is seeded.
 
 Two response styles are traits of the respondent, drawn with the latent trait.
 Acquiescence is a tendency to agree that shifts the answer to every item the
 same way, and half as much on a reverse-keyed item. Extreme response style is a
 gain on the respondent's score that pushes answers toward 1 and 5. Both are off
-by default.
+by default. Acquiescence divides each item by `sqrt(1 + (pull * a)^2)` to keep
+unit variance, so the loading becomes nominal: a keyed item correlates with its
+trait `loading / sqrt(1 + a^2)`, about 0.63 for lima and 0.69 for california at
+loading 0.7.
 
 ### Location profiles (assumed)
 
@@ -109,6 +112,12 @@ from real Lima or California respondents.
 The shares are those the cutpoints give before the styles act. Extreme
 responding pushes answers to 1 and 5, so the shares actually produced differ a
 little; `findings.md` prints both.
+
+The cutpoints cut each item as worded. In Satisfaccion the apatico and
+problematico items are worded against satisfaccion and answered on the flipped
+scale, so their answered shares are the profile's shares in reverse order: lima
+gives about 44% Nunca and 8% Siempre there. Lima's excess of 4-5 answers holds
+for Marketing Sensorial and entusiasta, not for every Satisfaccion item.
 
 ## Scenarios
 
@@ -132,10 +141,13 @@ the 2.5-97.5% band and the share of runs with alpha >= 0.7.
    apatico and problematico reverse-scored, for each profile and both pooled.
    The apatico and problematico items are answered on the flipped scale, so "as
    is" and "recoded" score the same kind of answers two ways.
-10. `profiles_same_loading`: the same, with one loading for both profiles, so
-    only cutpoints and response style differ.
+10. `profiles_same_loading`: the same, with one nominal loading for both
+    profiles, so only cutpoints and response style differ.
 11. `response_style`: alpha as the extreme-response or acquiescence strength
     grows from 0 to 1.
+12. `profiles_style_split`: Marketing Sensorial at the shared loading, once with
+    only the profiles' styles (shared cutpoints) and once with only their
+    cutpoints, to show which one drives the lima-california gap.
 
 ## R cross-check
 
