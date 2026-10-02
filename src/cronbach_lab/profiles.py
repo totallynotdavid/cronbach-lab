@@ -20,7 +20,14 @@ class Profile:
     probs: tuple
     extreme: float  # extreme response style: sd of the log gain, see generate.latent_items
     acquiescence: float  # sd of the tendency to agree, see generate.latent_items
-    loading: float = 0.7  # item-trait correlation, the same for every item
+    # Nominal loading, the same for every item. It is the item-trait correlation only
+    # without acquiescence: see `realised_loading`.
+    loading: float = 0.7
+
+    @property
+    def realised_loading(self):
+        """Item-trait correlation of a keyed item once acquiescence has been rescaled out."""
+        return self.loading / np.sqrt(1 + self.acquiescence**2)
 
 
 PROFILES = {

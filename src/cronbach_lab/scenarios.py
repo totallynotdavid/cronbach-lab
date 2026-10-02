@@ -33,6 +33,7 @@ ITEM_COUNTS = [3, 5, 15]
 SAMPLE_SIZES = [20, 50, 100, 400]
 AGE_GROUP_SIZE = 100
 AGE_LOADINGS = [0.8, 0.7, 0.5, 0.3]
+SAME_LOADING = 0.7  # the loading both profiles share in the same-loading runs
 
 
 def cell(scenario, setting, draw, reps, rng, planted=None, boot=0, truth=None, **cols):
@@ -304,11 +305,13 @@ class Scale(NamedTuple):
 def profile_scales():
     """Marketing Sensorial, and Satisfaccion with the same answers scored as is and recoded."""
     satisfaccion = factor_index(SATISFACCION)
-    against = satisfaccion > 0  # apatico and problematico items are worded against satisfaccion
+    # Apatico and problematico (dimensions 1 and 2) are worded against satisfaccion.
+    dimension_against = np.arange(len(SATISFACCION)) > 0
+    against = dimension_against[satisfaccion]
     # SATISFACCION_CORR relates the behaviours. These items are answered on the flipped
     # scale, so the traits are taken in the direction of satisfaccion: flipping a trait
     # flips the sign of its correlations. Recoding then gives positively correlated items.
-    sign = np.where(np.arange(len(SATISFACCION)) > 0, -1, 1)
+    sign = np.where(dimension_against, -1, 1)
     corr = SATISFACCION_CORR * np.outer(sign, sign)
     return {
         "marketing sensorial": Scale(
@@ -323,7 +326,9 @@ def profile_draw(profiles, scale, n=DEFAULT_N):
     """draw(rng): n respondents from each profile, stacked into one sample.
 
     The reverse-keyed items are generated as such, so acquiescence pulls them as the
-    generator documents, and are scored back when the scale is recoded.
+    generator documents, and are scored back when the scale is recoded. The profile's
+    cutpoints cut the item as worded, before the flip, so the answered shares on a
+    reverse-keyed item are the profile's shares in reverse order.
     """
 
     def draw(r):
@@ -371,11 +376,34 @@ def profiles_assumed(reps, rng):
 
 
 def profiles_same_loading(reps, rng):
-    """Both profiles share one loading: only cutpoints and response style differ."""
-    both = [replace(p, loading=0.7) for p in PROFILES.values()]
+    """Both profiles share one nominal loading: only cutpoints and response style differ."""
+    both = [replace(p, loading=SAME_LOADING) for p in PROFILES.values()]
     return profile_rows(
         "profiles_same_loading", {p.name: [p] for p in both} | {"pooled": both}, reps, rng
     )
+
+
+def profiles_style_split(reps, rng):
+    """Marketing Sensorial at the shared loading, with only the styles or only the cutpoints."""
+    scale = profile_scales()["marketing sensorial"]
+    no_style = {"extreme": 0.0, "acquiescence": 0.0}
+    shared_cutpoints = {"probs": tuple(RESPONSE_SHAPES["symmetric"])}
+    variants = {"style only": shared_cutpoints, "cutpoints only": no_style}
+    return [
+        cell(
+            "profiles_style_split",
+            f"marketing sensorial, {p.name}, {variant}",
+            profile_draw([replace(p, loading=SAME_LOADING, **change)], scale),
+            reps,
+            rng,
+            k=len(scale.factor),
+            n=DEFAULT_N,
+            scale="marketing sensorial",
+            profile=p.name,
+        )
+        for variant, change in variants.items()
+        for p in PROFILES.values()
+    ]
 
 
 def response_style(reps, rng):
@@ -415,6 +443,7 @@ SCENARIOS = [
     profiles_assumed,
     profiles_same_loading,
     response_style,
+    profiles_style_split,
 ]
 
 

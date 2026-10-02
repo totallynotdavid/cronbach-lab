@@ -7,6 +7,11 @@ Each respondent has a latent trait theta (one per factor). Item j is
 so every continuous item has variance 1, the loading is the item-trait
 correlation, and two items on the same factor correlate loading_i * loading_j.
 The continuous score is then cut into the categories 1..5.
+
+That holds without response styles. Acquiescence adds a shared tendency and divides
+each item by sqrt(1 + (pull * acquiescence)**2), so the item-trait correlation falls
+to loading / sqrt(1 + acquiescence**2) on a keyed item (pull 1): the loading is then
+only nominal.
 """
 
 from statistics import NormalDist
