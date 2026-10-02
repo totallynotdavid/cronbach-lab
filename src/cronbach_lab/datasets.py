@@ -82,12 +82,21 @@ def build_age_dataset(rng):
     return simulate(len(group), loadings, rng, group=group), np.array(AGE_GROUPS)[group]
 
 
-def write_datasets(out_dir, seed=1):
+def draw_datasets(seed=1):
+    """The R cross-check datasets and the age-group dataset, from one seeded RNG.
+
+    The CSVs and the workbooks are written from the same draw, so each workbook
+    holds the answers of the CSV with the same name.
+    """
+    rng = np.random.default_rng(seed)
+    return build_datasets(rng), build_age_dataset(rng)
+
+
+def write_datasets(out_dir, datasets):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(seed)
     reference = []
-    for name, (x, columns) in build_datasets(rng).items():
+    for name, (x, columns) in datasets.items():
         pd.DataFrame(x, columns=columns).to_csv(out_dir / f"{name}.csv", index=False)
         reference.append(
             {"dataset": name, "raw_alpha": cronbach_alpha(x), "std_alpha": standardized_alpha(x)}

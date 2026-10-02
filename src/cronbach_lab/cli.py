@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from .datasets import write_datasets
+from .datasets import draw_datasets, write_datasets
 from .excel import write_workbooks
 from .report import write_findings, write_plots
 from .scenarios import run_all
@@ -26,7 +26,7 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
     if args.command == "datasets":
-        write_datasets(args.out, args.seed)
+        write_datasets(args.out, draw_datasets(args.seed)[0])
         return
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -34,6 +34,7 @@ def main(argv=None):
     results.to_csv(args.out / "results.csv", index=False)
     write_plots(results, args.out / "plots")
     write_findings(results, args.reps, args.out / "findings.md")
-    write_datasets(args.out / "datasets", args.seed)
-    write_workbooks(args.out / "xlsx", args.seed)
+    datasets, age_dataset = draw_datasets(args.seed)
+    write_datasets(args.out / "datasets", datasets)
+    write_workbooks(args.out / "xlsx", datasets, age_dataset)
     print(f"wrote {args.out}/results.csv, plots/, findings.md, datasets/, xlsx/")
