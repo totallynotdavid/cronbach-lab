@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from cronbach_lab.cli import main
-from cronbach_lab.datasets import write_datasets
+from cronbach_lab.datasets import draw_datasets, write_datasets
 
 CROSSCHECK = Path(__file__).parents[1] / "r" / "crosscheck.R"
 
@@ -57,7 +57,7 @@ def test_run_writes_csv_plots_and_findings(tmp_path):
 
 @pytest.mark.skipif(not r_has_psych(), reason="Rscript with the psych package is not installed")
 def test_r_psych_agrees_with_python(tmp_path):
-    write_datasets(tmp_path)
+    write_datasets(tmp_path, draw_datasets()[0])
     done = subprocess.run(
         ["Rscript", str(CROSSCHECK), str(tmp_path)], capture_output=True, text=True, check=False
     )
@@ -67,7 +67,7 @@ def test_r_psych_agrees_with_python(tmp_path):
 
 @pytest.mark.skipif(not r_has_psych(), reason="Rscript with the psych package is not installed")
 def test_r_crosscheck_fails_when_python_value_is_wrong(tmp_path):
-    write_datasets(tmp_path)
+    write_datasets(tmp_path, draw_datasets()[0])
     reference = pd.read_csv(tmp_path / "python_alpha.csv")
     reference.loc[0, "raw_alpha"] += 1e-3
     reference.to_csv(tmp_path / "python_alpha.csv", index=False)

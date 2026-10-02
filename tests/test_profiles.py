@@ -5,7 +5,8 @@ import pytest
 
 from cronbach_lab.alpha import cronbach_alpha
 from cronbach_lab.generate import RESPONSE_SHAPES, latent_items, reverse_score
-from cronbach_lab.profiles import PROFILES, simulate_profile
+from cronbach_lab.profiles import PROFILES, realised_shares, simulate_profile
+from cronbach_lab.scenarios import profile_draw, profile_scales
 
 SYMMETRIC_NO_STYLE = replace(
     PROFILES["lima"], probs=tuple(RESPONSE_SHAPES["symmetric"]), extreme=0.0, acquiescence=0.0
@@ -26,8 +27,34 @@ def mean_alpha(profile, loadings, reps=20, n=3000, seed=0, recode=None, **kwargs
     return np.mean(alphas)
 
 
-def test_profile_without_style_and_equal_loadings_matches_theory():
-    # Same bound as the plain generator: 5-category cutting leaves alpha a little under theory.
+@pytest.mark.parametrize("name", ["lima", "california"])
+def test_real_profile_without_style_sits_a_known_gap_under_theory(name):
+    # Before cutting, equal loadings give the theoretical alpha exactly. Cutting into
+    # 5 categories turns the items into coarse Pearson variables, which correlate less
+    # than the latent scores do, so alpha falls under theory. Skewed cutpoints leave
+    # few answers in the thin tail categories, so the loss is larger than for the
+    # symmetric cutpoints (about 0.03): about 0.05 for lima and 0.03 for california.
+    k, loading = 6, 0.6
+    profile = replace(PROFILES[name], extreme=0.0, acquiescence=0.0)
+    theory = theoretical_alpha(k, loading)
+
+    rng = np.random.default_rng(0)
+    continuous = np.mean(
+        [cronbach_alpha(latent_items(3000, np.full(k, loading), rng)) for _ in range(20)]
+    )
+    assert continuous == pytest.approx(theory, abs=0.01)
+
+    gap = theory - mean_alpha(profile, np.full(k, loading))
+    assert 0.025 < gap < 0.07
+
+
+def test_skewed_cutpoints_lose_more_alpha_than_symmetric_ones():
+    loadings = np.full(6, 0.6)
+    lima = replace(PROFILES["lima"], extreme=0.0, acquiescence=0.0)
+    assert mean_alpha(lima, loadings) < mean_alpha(SYMMETRIC_NO_STYLE, loadings) - 0.01
+
+
+def test_symmetric_profile_without_style_is_just_under_theory():
     k, loading = 6, 0.6
     simulated = mean_alpha(SYMMETRIC_NO_STYLE, np.full(k, loading))
     assert theoretical_alpha(k, loading) - 0.04 < simulated < theoretical_alpha(k, loading)
@@ -40,11 +67,60 @@ def test_style_traits_off_leave_the_latent_scores_untouched():
 
 
 def test_profile_cutpoints_give_its_answer_shares_even_with_acquiescence():
-    # Acquiescence is rescaled to keep unit variance, so the shares do not move.
+    # Acquiescence is rescaled item by item to keep unit variance, so the shares do not
+    # move, on the reverse-keyed items either (the answered scale is flipped for them).
     lima = replace(PROFILES["lima"], extreme=0.0, acquiescence=0.7)
-    x = simulate_profile(lima, 200_000, np.full(4, 0.6), np.random.default_rng(2))
-    shares = np.bincount(x.ravel(), minlength=6)[1:] / x.size
-    assert shares == pytest.approx(lima.probs, abs=0.01)
+    reverse = np.array([False, False, True, True])
+    x = simulate_profile(lima, 200_000, np.full(4, 0.6), np.random.default_rng(2), reverse=reverse)
+    for item, flipped in enumerate(reverse):
+        shares = np.bincount(x[:, item], minlength=6)[1:] / len(x)
+        expected = lima.probs[::-1] if flipped else lima.probs
+        assert shares == pytest.approx(expected, abs=0.01)
+
+
+def test_style_scores_have_unit_variance_on_every_item():
+    reverse = np.array([False, False, True, True])
+    x = latent_items(
+        200_000, np.full(4, 0.6), np.random.default_rng(4), reverse=reverse, acquiescence=1.0
+    )
+    assert x.var(axis=0) == pytest.approx(1.0, abs=0.02)
+
+
+def test_realised_shares_differ_from_the_declared_ones_only_through_extreme_style():
+    lima = PROFILES["lima"]
+    assert realised_shares(lima).sum() == pytest.approx(1.0)
+    assert realised_shares(lima)[0] > lima.probs[0] + 0.01
+    calm = replace(lima, extreme=0.0)
+    assert realised_shares(calm) == pytest.approx(lima.probs, abs=0.01)
+
+
+def test_recoding_turns_the_reverse_keyed_items_from_negative_to_positive_correlations():
+    # The same answers are scored two ways. Without style, flipping and recoding must not
+    # cancel: the reverse-keyed items run against the others as answered and with them once
+    # recoded.
+    scales = profile_scales()
+
+    def cross_corr(name):
+        scale = scales[name]
+        x = profile_draw([SYMMETRIC_NO_STYLE], scale, n=40_000)(np.random.default_rng(6))
+        corr = np.corrcoef(x, rowvar=False)
+        return corr[np.ix_(~scale.reverse, scale.reverse)].mean()
+
+    assert cross_corr("satisfaccion as is") < -0.1
+    assert cross_corr("satisfaccion recoded") > 0.1
+
+
+def test_recoded_scenario_uses_the_reduced_acquiescence_pull():
+    # Loading 0 leaves only acquiescence, so the correlation between an item and a
+    # recoded item is the shared tendency. In the answered scale the recoded items get
+    # pull -0.5 against +1 for the others: corr = -0.5 s^2 / sqrt((1 + s^2)(1 + 0.25 s^2)),
+    # -0.32 for s = 1. Applying the full pull to them would give -0.5.
+    profile = replace(SYMMETRIC_NO_STYLE, loading=0.0, acquiescence=1.0)
+    scale = profile_scales()["satisfaccion recoded"]
+    x = profile_draw([profile], scale, n=60_000)(np.random.default_rng(5))
+    corr = np.corrcoef(x, rowvar=False)
+    keyed_vs_recoded = corr[np.ix_(~scale.reverse, scale.reverse)].mean()
+    assert -0.36 < keyed_vs_recoded < -0.27
 
 
 def test_acquiescence_raises_alpha_on_a_keyed_only_scale():

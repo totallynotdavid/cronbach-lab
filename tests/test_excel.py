@@ -3,7 +3,7 @@ import re
 import pandas as pd
 import pytest
 
-from cronbach_lab.datasets import write_datasets
+from cronbach_lab.datasets import draw_datasets, write_datasets
 from cronbach_lab.excel import write_workbooks
 
 DATASETS = 9
@@ -19,7 +19,7 @@ def alpha_from_variances(items):
 @pytest.fixture(scope="module")
 def workbooks(tmp_path_factory):
     out = tmp_path_factory.mktemp("xlsx")
-    write_workbooks(out)
+    write_workbooks(out, *draw_datasets())
     return out
 
 
@@ -76,7 +76,7 @@ def test_age_workbooks_hold_their_group_and_the_oldest_group_is_least_reliable(w
 
 
 def test_workbook_answers_equal_the_csv_dataset_of_the_same_name(workbooks, tmp_path):
-    write_datasets(tmp_path)
+    write_datasets(tmp_path, draw_datasets()[0])
     for csv in tmp_path.glob("*.csv"):
         if csv.stem == "python_alpha":
             continue
@@ -86,7 +86,11 @@ def test_workbook_answers_equal_the_csv_dataset_of_the_same_name(workbooks, tmp_
         )
 
 
-def test_rewriting_removes_workbooks_from_an_earlier_seed(tmp_path):
-    write_workbooks(tmp_path, seed=1)
-    write_workbooks(tmp_path, seed=2)
-    assert len(list(tmp_path.glob("*.xlsx"))) == DATASETS + len(AGE_FILES)
+def test_rewriting_replaces_its_own_workbooks_from_an_earlier_seed_and_keeps_other_files(tmp_path):
+    mine = tmp_path / "my_own_notes.xlsx"
+    mine.write_bytes(b"not ours")
+    first = write_workbooks(tmp_path, *draw_datasets(seed=1))
+    second = write_workbooks(tmp_path, *draw_datasets(seed=2))
+    assert set(first) != set(second)
+    assert len(list(tmp_path.glob("*_alpha*.xlsx"))) == DATASETS + len(AGE_FILES)
+    assert mine.read_bytes() == b"not ours"
