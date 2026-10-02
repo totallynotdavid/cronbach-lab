@@ -26,7 +26,7 @@ Needs [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
-uv run cronbach-lab run       # about a minute
+uv run cronbach-lab run       # about 90 seconds
 ```
 
 With [mise](https://mise.jdx.dev/) the tools are pinned in `mise.toml`:
@@ -98,13 +98,17 @@ by default.
 
 ### Location profiles (assumed)
 
-A profile in `profiles.py` bundles answer shares for 1..5, an extreme-response
-strength, an acquiescence strength and a loading. `lima` has more answers on 4-5
-and on both extremes, with strong styles and loading 0.7. `california` is more
-moderate (more 3s and 4s, still skewed toward agreement), with weaker styles and
-loading 0.6. **Every one of these numbers is an assumption**, chosen to show
-what response habits can do to alpha. None comes from real Lima or California
-respondents.
+A profile in `profiles.py` bundles the answer shares that set the cutpoints, an
+extreme-response strength, an acquiescence strength and a loading. `lima` has
+more answers on 4-5 and on both extremes, with strong styles and loading 0.7.
+`california` is more moderate (more 3s and 4s, still skewed toward agreement),
+with weaker styles and loading 0.6. **Every one of these numbers is an
+assumption**, chosen to show what response habits can do to alpha. None comes
+from real Lima or California respondents.
+
+The shares are those the cutpoints give before the styles act. Extreme
+responding pushes answers to 1 and 5, so the shares actually produced differ a
+little; `findings.md` prints both.
 
 ## Scenarios
 
@@ -126,6 +130,8 @@ the 2.5-97.5% band and the share of runs with alpha >= 0.7.
 8. `bootstrap_interval`: width and coverage of the 95% bootstrap interval.
 9. `profiles`: Marketing Sensorial, Satisfaccion as is and Satisfaccion with
    apatico and problematico reverse-scored, for each profile and both pooled.
+   The apatico and problematico items are answered on the flipped scale, so "as
+   is" and "recoded" score the same kind of answers two ways.
 10. `profiles_same_loading`: the same, with one loading for both profiles, so
     only cutpoints and response style differ.
 11. `response_style`: alpha as the extreme-response or acquiescence strength
