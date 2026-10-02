@@ -4,11 +4,14 @@ Every scenario function returns a list of result rows (dicts). One row is one
 setting replicated `reps` times, each replicate a fresh simulated sample.
 """
 
+from dataclasses import replace
+
 import numpy as np
 import pandas as pd
 
 from .alpha import alpha_if_dropped, bootstrap_ci, cronbach_alpha, standardized_alpha
 from .generate import RESPONSE_SHAPES, cutpoints_from_probs, reverse_score, simulate
+from .profiles import PROFILES, simulate_profile
 from .survey import (
     AGE_GROUPS,
     MARKETING_SENSORIAL,
@@ -27,6 +30,8 @@ DEFAULT_LOADING = 0.6
 LOADINGS = np.round(np.arange(0.20, 0.901, 0.05), 2)
 ITEM_COUNTS = [3, 5, 15]
 SAMPLE_SIZES = [20, 50, 100, 400]
+AGE_GROUP_SIZE = 100
+AGE_LOADINGS = [0.8, 0.7, 0.5, 0.3]
 
 
 def cell(scenario, setting, draw, reps, rng, planted=None, boot=0, truth=None, **cols):
@@ -115,7 +120,7 @@ def response_shape(reps, rng):
         cell(
             "response_shape",
             f"{shape}, loading={loading}",
-            lambda r, shape=shape, loading=loading: simulate(
+            lambda r, probs=probs, loading=loading: simulate(
                 DEFAULT_N,
                 equal_loadings(DEFAULT_K, loading),
                 r,
@@ -201,13 +206,13 @@ def multidimensional(reps, rng):
 
 def age_groups(reps, rng):
     """Four age groups of 100: alpha inside each group versus pooled."""
-    per_group = 100
+    per_group = AGE_GROUP_SIZE
     group = np.repeat(np.arange(len(AGE_GROUPS)), per_group)
     variants = {
         "equal loadings": ([0.6, 0.6, 0.6, 0.6], None),
         "equal loadings, theta shifts": ([0.6, 0.6, 0.6, 0.6], [0.6, 0.2, -0.2, -0.6]),
-        "different loadings": ([0.8, 0.7, 0.5, 0.3], None),
-        "different loadings, theta shifts": ([0.8, 0.7, 0.5, 0.3], [0.6, 0.2, -0.2, -0.6]),
+        "different loadings": (AGE_LOADINGS, None),
+        "different loadings, theta shifts": (AGE_LOADINGS, [0.6, 0.2, -0.2, -0.6]),
     }
     rows = []
     for variant, (group_loadings, shift) in variants.items():
@@ -285,6 +290,100 @@ def bootstrap_interval(reps, rng):
     ]
 
 
+STYLE_STRENGTHS = [0.0, 0.25, 0.5, 0.75, 1.0]
+
+
+def profile_scales():
+    """Scale name -> (factor of each item, factor correlation, items the analyst recodes)."""
+    satisfaccion = factor_index(SATISFACCION)
+    return {
+        "marketing sensorial": (factor_index(MARKETING_SENSORIAL), marketing_corr(0.3), None),
+        "satisfaccion as is": (satisfaccion, SATISFACCION_CORR, None),
+        # Apatico and problematico (factors 1 and 2) are scored backwards.
+        "satisfaccion recoded": (satisfaccion, SATISFACCION_CORR, satisfaccion > 0),
+    }
+
+
+def profile_draw(profiles, scale):
+    """draw(rng): DEFAULT_N respondents from each profile, stacked into one sample."""
+    factor, factor_corr, recode = scale
+
+    def draw(r):
+        samples = [
+            simulate_profile(
+                p,
+                DEFAULT_N,
+                equal_loadings(len(factor), p.loading),
+                r,
+                factor=factor,
+                factor_corr=factor_corr,
+            )
+            for p in profiles
+        ]
+        x = np.vstack(samples)
+        return x if recode is None else reverse_score(x, recode)
+
+    return draw
+
+
+def profile_rows(scenario, groups, reps, rng):
+    """One row per scale and group of profiles; groups maps a label to a list of profiles."""
+    return [
+        cell(
+            scenario,
+            f"{name}, {label}",
+            profile_draw(profiles, scale),
+            reps,
+            rng,
+            k=len(scale[0]),
+            n=DEFAULT_N * len(profiles),
+            scale=name,
+            profile=label,
+        )
+        for name, scale in profile_scales().items()
+        for label, profiles in groups.items()
+    ]
+
+
+def profiles_assumed(reps, rng):
+    """Each profile as assumed (cutpoints, style and loading differ), then both pooled."""
+    both = list(PROFILES.values())
+    return profile_rows("profiles", {p.name: [p] for p in both} | {"pooled": both}, reps, rng)
+
+
+def profiles_same_loading(reps, rng):
+    """Both profiles share one loading: only cutpoints and response style differ."""
+    both = [replace(p, loading=0.7) for p in PROFILES.values()]
+    return profile_rows(
+        "profiles_same_loading", {p.name: [p] for p in both} | {"pooled": both}, reps, rng
+    )
+
+
+def response_style(reps, rng):
+    """Alpha as one style trait grows from 0 to 1 while the other stays off."""
+    return [
+        cell(
+            "response_style",
+            f"{name}, {p.name}, {style}={strength}",
+            profile_draw(
+                [replace(p, **({"extreme": 0.0, "acquiescence": 0.0} | {style: strength}))], scale
+            ),
+            reps,
+            rng,
+            k=len(scale[0]),
+            n=DEFAULT_N,
+            scale=name,
+            profile=p.name,
+            style=style,
+            strength=strength,
+        )
+        for name, scale in profile_scales().items()
+        for p in PROFILES.values()
+        for style in ["extreme", "acquiescence"]
+        for strength in STYLE_STRENGTHS
+    ]
+
+
 SCENARIOS = [
     loading_items,
     sample_size,
@@ -294,6 +393,9 @@ SCENARIOS = [
     age_groups,
     bad_items,
     bootstrap_interval,
+    profiles_assumed,
+    profiles_same_loading,
+    response_style,
 ]
 
 
