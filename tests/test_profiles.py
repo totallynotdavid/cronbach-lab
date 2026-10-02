@@ -5,7 +5,12 @@ import pytest
 
 from cronbach_lab.alpha import cronbach_alpha
 from cronbach_lab.generate import RESPONSE_SHAPES, latent_items, reverse_score
-from cronbach_lab.profiles import PROFILES, realised_shares, simulate_profile
+from cronbach_lab.profiles import (
+    PROFILES,
+    item_trait_correlation,
+    realised_shares,
+    simulate_profile,
+)
 from cronbach_lab.scenarios import profile_draw, profile_scales
 
 SYMMETRIC_NO_STYLE = replace(
@@ -79,21 +84,27 @@ def test_profile_cutpoints_give_its_answer_shares_even_with_acquiescence():
 
 
 @pytest.mark.parametrize("name", ["lima", "california"])
-def test_realised_loading_is_the_item_trait_correlation_under_acquiescence(name):
-    profile = replace(PROFILES[name], extreme=0.0, loading=0.7)
-    seed = 8
-    x = latent_items(
-        200_000,
-        np.array([profile.loading]),
-        np.random.default_rng(seed),
-        acquiescence=profile.acquiescence,
+def test_item_trait_correlation_with_both_styles_is_below_the_nominal_loading(name):
+    profile = replace(PROFILES[name], loading=0.7)
+    measured = item_trait_correlation(profile)
+
+    # A second computation that follows the documented model by hand, with its own
+    # random numbers: the score is rescaled by acquiescence, then stretched by the gain.
+    n, rng = 400_000, np.random.default_rng(11)
+    theta = rng.standard_normal(n)
+    score = 0.7 * theta + np.sqrt(1 - 0.7**2) * rng.standard_normal(n)
+    score = (score + profile.acquiescence * rng.standard_normal(n)) / np.sqrt(
+        1 + profile.acquiescence**2
     )
-    # The first draw of latent_items is theta.
-    theta = np.random.default_rng(seed).multivariate_normal([0.0], [[1.0]], size=200_000)
-    assert np.corrcoef(x[:, 0], theta[:, 0])[0, 1] == pytest.approx(
-        profile.realised_loading, abs=0.01
-    )
-    assert profile.realised_loading < profile.loading
+    score = score * np.exp(profile.extreme * rng.standard_normal(n))
+
+    assert measured < profile.loading - 0.02
+    assert measured == pytest.approx(np.corrcoef(theta, score)[0, 1], abs=0.01)
+
+
+def test_item_trait_correlation_without_styles_is_the_loading():
+    calm = replace(PROFILES["lima"], extreme=0.0, acquiescence=0.0, loading=0.7)
+    assert item_trait_correlation(calm) == pytest.approx(0.7, abs=0.01)
 
 
 def test_style_scores_have_unit_variance_on_every_item():
