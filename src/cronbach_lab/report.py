@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .profiles import PROFILES, item_trait_correlation, realised_shares
-from .scenarios import DEFAULT_N, ITEM_COUNTS, SAME_LOADING, THRESHOLD
+from .scenarios import DEFAULT_N, ITEM_COUNTS, SAME_LOADING, THRESHOLD, WORKBOOK_N
 
 
 def plot_loading_items(results, path):
@@ -74,14 +74,50 @@ def plot_response_style(results, path):
     plt.close(fig)
 
 
+def plot_small_groups(results, path):
+    """Alpha band per group at each sample size, a panel per scale, with the population alpha."""
+    d = results[results.scenario == "small_groups"]
+    scales = d.scale.unique()
+    sizes = sorted(d.n.unique())
+    fig, axes = plt.subplots(1, len(scales), figsize=(6 * len(scales), 5.5), sharey=True)
+    for ax, scale in zip(axes, scales):
+        g = d[d.scale == scale]
+        groups = list(g.group.unique())
+        for j, n in enumerate(sizes):
+            h = g[g.n == n].set_index("group").loc[groups]
+            y = np.arange(len(groups)) + (j - (len(sizes) - 1) / 2) * 0.18
+            ax.errorbar(
+                h.mean_alpha,
+                y,
+                xerr=[h.mean_alpha - h.p2_5, h.p97_5 - h.mean_alpha],
+                fmt="o",
+                ms=3,
+                capsize=2,
+                label=f"n={n}",
+            )
+        truth = g[g.n == sizes[0]].set_index("group").loc[groups].true_alpha
+        ax.scatter(truth, np.arange(len(groups)), marker="D", color="k", s=18, zorder=3)
+        ax.axvline(THRESHOLD, color="k", ls="--", lw=1)
+        ax.set_yticks(np.arange(len(groups)), groups)
+        ax.set(
+            title=scale, xlabel="Cronbach alpha (dot = mean, bar = 2.5-97.5%, diamond = population)"
+        )
+    axes[0].invert_yaxis()  # the y axis is shared, so invert it once
+    axes[0].legend(loc="lower right")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
 def write_plots(results, out_dir):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     plot_loading_items(results, out_dir / "loading_items.png")
     plot_response_style(results, out_dir / "response_style.png")
     for scenario in results.scenario.unique():
-        if scenario not in ("loading_items", "response_style"):
+        if scenario not in ("loading_items", "response_style", "small_groups"):
             plot_bars(results, scenario, out_dir / f"{scenario}.png")
+    plot_small_groups(results, out_dir / "small_groups.png")
 
 
 def md_table(headers, rows):
@@ -217,8 +253,10 @@ def profile_findings(results):
     same_loading_r = {
         p.name: item_trait_correlation(replace(p, loading=SAME_LOADING)) for p in PROFILES.values()
     }
-    lima_answered = realised_shares(PROFILES["lima"])[::-1]
-    lima_nunca, lima_siempre = 100 * lima_answered[0], 100 * lima_answered[4]
+    # Shares as answered on a mirrored item: the keyed shares in reverse order.
+    answered = {name: 100 * realised_shares(p)[::-1] for name, p in PROFILES.items()}
+    lima_high, california_high = answered["lima"][3:].sum(), answered["california"][3:].sum()
+    lima_nunca, california_nunca = answered["lima"][0], answered["california"][0]
 
     acquiescence = lambda scale: (
         sensitivity(scale, "lima", "acquiescence", 0.0),
@@ -264,10 +302,10 @@ alpha and the share of runs >= {THRESHOLD}.
 
 A profile's cutpoints cut each item as worded, before the flip. The apatico and
 problematico items are answered flipped, so on them the answered shares are the
-profile's shares in reverse order: lima gives {lima_nunca:.0f}% Nunca and
-{lima_siempre:.0f}% Siempre there, the opposite of its keyed items. Lima's higher
-share of 4-5 answers therefore holds for Marketing Sensorial and for entusiasta,
-not for every Satisfaccion item as answered.
+profile's shares in reverse order. Lima still has more 4-5 answers on those
+mirrored items than california ({lima_high:.1f}% against {california_high:.1f}%). What
+differs is the other end: lima piles up at 1 ({lima_nunca:.0f}% against
+{california_nunca:.0f}%).
 
 ### Alpha per profile, and both profiles pooled
 
@@ -336,6 +374,130 @@ analysis). It asks, in order, whether the groups share the factor structure
 (scalar). Only with scalar invariance can the groups' scores be pooled or
 compared. This lab does not run one, because it needs structural equation
 modelling tools beyond its dependencies.
+"""
+
+
+def small_group_findings(results):
+    d = results[results.scenario == "small_groups"]
+    sizes = sorted(d.n.unique())
+    smallest, small, largest = sizes[0], WORKBOOK_N, sizes[-1]
+    ci_reps = int(d.ci_reps.iloc[0])
+    replicates = int(d.reps.iloc[0])
+
+    def table(scale):
+        rows = []
+        for r in d[d.scale == scale].itertuples():
+            below = r.true_alpha < THRESHOLD
+            rows.append(
+                [
+                    r.group,
+                    r.n,
+                    f"{r.true_alpha:.2f}",
+                    f"{r.mean_alpha:.2f}",
+                    f"{r.p2_5:.2f} to {r.p97_5:.2f}",
+                    f"{r.share_ge_0_7:.0%}",
+                    f"{r.false_pass:.0%}" if below else "-",
+                    "-" if below else f"{r.false_fail:.0%}",
+                    f"{r.median_ci_width:.2f}",
+                    f"{r.ci_coverage:.0%}",
+                ]
+            )
+        headers = [
+            "group",
+            "n",
+            "population alpha",
+            "mean alpha",
+            "2.5-97.5% band",
+            "runs >= 0.7",
+            "false pass",
+            "false fail",
+            "median interval width",
+            "interval covers",
+        ]
+        return md_table(headers, rows)
+
+    at = d[d.n == small]
+    wrong_pass = at.loc[at.false_pass.idxmax()]
+    wrong_fail = at.loc[at.false_fail.idxmax()]
+    same = lambda n, row: d[(d.n == n) & (d.scale == row.scale) & (d.group == row.group)].iloc[0]
+    wrong_pass_large, wrong_fail_large = (
+        same(largest, wrong_pass).false_pass,
+        same(largest, wrong_fail).false_fail,
+    )
+    gap = (at.true_alpha - at.mean_alpha).max()
+    under = int((at.mean_alpha < at.true_alpha).sum())
+    band_width = lambda n: (d[d.n == n].p97_5 - d[d.n == n].p2_5).median()
+    interval_width = lambda n: d[d.n == n].median_ci_width.median()
+
+    coverage = d.groupby("n").ci_coverage.mean()
+    intervals = ci_reps * d.groupby("n").size().iloc[0]
+    error = 1.96 * np.sqrt(0.95 * 0.05 / intervals)
+    below = [n for n in sizes if coverage[n] < 0.95 - error]
+    names = lambda ns: " and ".join(f"n={n}" for n in ns)
+    tiny = sizes[:2]
+    if any(n in below for n in tiny):
+        verdict = (
+            f"Yes: coverage falls below 95% at {names([n for n in tiny if n in below])}, "
+            f"by more than the sampling error of this estimate (about {error:.1%})."
+        )
+    else:
+        verdict = (
+            f"No: at {names(tiny)} the coverage is within the sampling error of this "
+            f"estimate (about {error:.1%}) of 95%."
+        )
+    others = [n for n in sizes[2:] if n in below]
+    if others:
+        verdict += f" It is also below 95% at {names(others)}, so the shortfall is not limited to the smallest groups."
+    covers = ", ".join(f"{coverage[n]:.1%} at n={n}" for n in sizes)
+
+    return f"""## 10. Small groups of 30 to 50, against the population alpha
+
+Everything here is an assumption of the simulation, like section 9. Each group
+is a profile (lima, california) or an age group (loadings 0.8, 0.7, 0.5 and 0.3,
+as in section 6, symmetric answers, no response styles), scored on Marketing
+Sensorial and on Satisfaccion recoded. Each is drawn at n={smallest}, {sizes[1]}, {small}
+and {largest} respondents, {replicates} replicates per row. "Population alpha" is the
+alpha of the same setting at 200000 respondents, one draw.
+
+A false pass is a run with alpha >= {THRESHOLD} in a group whose population alpha
+is below it. A false fail is a run below {THRESHOLD} in a group whose population alpha
+is {THRESHOLD} or more. A group is on one side, so the other column shows a dash. The
+interval is the 95% percentile bootstrap (500 resamples). To keep the run short
+it is computed on the first {ci_reps} of the {replicates} replicates of each row, so
+its width and coverage rest on {ci_reps} samples per row and are noisier than the
+alpha columns. The plot is `plots/small_groups.png`.
+
+### Marketing Sensorial
+
+{table("marketing sensorial")}
+
+### Satisfaccion recoded
+
+{table("satisfaccion recoded")}
+
+### What a small group can show
+
+A group of {small} reads a little low. Its mean alpha is under the population
+alpha in {under} of the {len(at)} settings, by at most {gap:.2f}, and the spread is
+wide: the middle 95% of alpha spans {band_width(small):.2f} at n={small} (median over the settings), against
+{band_width(largest):.2f} at n={largest}.
+
+How often a weak group looks fine by chance depends on how close it is to 0.7.
+The worst false pass at n={small} is {wrong_pass.group} on {wrong_pass.scale}, with
+population alpha {wrong_pass.true_alpha:.2f}: {wrong_pass.false_pass:.0%} of samples reach 0.7. A group that
+close to the threshold passes often by chance, and more respondents do not remove
+that: at n={largest} the same group still passes {wrong_pass_large:.0%} of the time. A group far
+below, such as the 50+ group, almost never passes. The reverse also happens: the
+worst false fail at n={small} is {wrong_fail.group} on {wrong_fail.scale}, population alpha
+{wrong_fail.true_alpha:.2f}, where {wrong_fail.false_fail:.0%} of samples fall below 0.7 although the
+group's population alpha is above it. At n={largest} that falls to {wrong_fail_large:.0%}.
+
+### The bootstrap interval
+
+The median 95% interval is {interval_width(small):.2f} wide at n={small} (median over the settings)
+and {interval_width(largest):.2f} at n={largest}. Pooled over the {len(at)} settings
+of each size ({intervals} intervals each), the share of intervals that contain the
+population alpha is {covers}. {verdict}
 """
 
 
@@ -534,7 +696,9 @@ estimate above 0.7 from a small sample does not show the scale is reliable. Repo
 the interval, not only the point value. Percentile intervals also tend to cover
 slightly less than 95% in small samples.
 
-{profile_findings(results)}"""
+{profile_findings(results)}
+
+{small_group_findings(results)}"""
 
 
 def write_findings(results, reps, path):
