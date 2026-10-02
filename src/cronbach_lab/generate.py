@@ -29,6 +29,10 @@ RESPONSE_SHAPES = {
 }
 SYMMETRIC = cutpoints_from_probs(RESPONSE_SHAPES["symmetric"])
 
+# Assumed: people agree less strongly with an item worded against the trait than
+# with one worded for it, so acquiescence on a reverse-keyed item is half as large.
+ACQUIESCENCE_ON_REVERSE = 0.5
+
 
 def equicorrelated(n_factors, r):
     """Correlation matrix with r between every pair of factors."""
@@ -43,6 +47,9 @@ def latent_items(
     factor_corr=None,
     group=None,
     theta_shift=None,
+    reverse=None,
+    acquiescence=0.0,
+    extreme=0.0,
 ):
     """Continuous item scores, shape (n, k).
 
@@ -52,6 +59,12 @@ def latent_items(
     group: (n,) group index of each respondent; needed for 2-D loadings
         or theta_shift.
     theta_shift: (groups,) mean of theta in each group.
+    reverse: (k,) bool, items that will be answered on the flipped scale. Only
+        acquiescence needs it.
+    acquiescence: sd of a per-respondent tendency to agree. It shifts the answer
+        to every item in the same direction, whatever the item says.
+    extreme: sd of the log of a per-respondent gain on the score. A large gain
+        pushes the score past the outer cutpoints, so the respondent answers 1 or 5.
     """
     loadings = np.asarray(loadings, dtype=float)
     k = loadings.shape[-1]
@@ -65,7 +78,22 @@ def latent_items(
     loading = loadings[group] if loadings.ndim == 2 else loadings
 
     noise = rng.standard_normal((n, k)) * np.sqrt(1 - loading**2)
-    return loading * theta[:, factor] + noise
+    x = loading * theta[:, factor] + noise
+
+    # Style traits draw from the RNG only when switched on, so a style-free
+    # sample is identical to one from before they existed.
+    if acquiescence:
+        # The tendency is added on the answered scale: a respondent who agrees
+        # raises keyed items and, less so, reverse-keyed ones. The reverse-keyed
+        # items are flipped after cutting, so their shift here is negative.
+        pull = np.ones(k) if reverse is None else np.where(reverse, -ACQUIESCENCE_ON_REVERSE, 1.0)
+        tendency = acquiescence * rng.standard_normal(n)
+        # Dividing keeps the item variance at 1, so the cutpoints still give the
+        # category shares they were built for.
+        x = (x + tendency[:, None] * pull) / np.sqrt(1 + acquiescence**2)
+    if extreme:
+        x = x * np.exp(extreme * rng.standard_normal(n))[:, None]
+    return x
 
 
 def discretize(x, cutpoints=SYMMETRIC):
@@ -90,7 +118,7 @@ def simulate(
     random_share: share of respondents who answer every item uniformly at random.
     straightline_share: share who give one random answer to every item.
     """
-    x = discretize(latent_items(n, loadings, rng, **latent_kwargs), cutpoints)
+    x = discretize(latent_items(n, loadings, rng, reverse=reverse, **latent_kwargs), cutpoints)
     k = x.shape[1]
     if reverse is not None:
         x = np.where(reverse, 6 - x, x)
