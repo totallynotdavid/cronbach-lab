@@ -26,7 +26,7 @@ Needs [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
-uv run cronbach-lab run       # about 90 seconds
+uv run cronbach-lab run       # about 2.5 minutes
 ```
 
 With [mise](https://mise.jdx.dev/) the tools are pinned in `mise.toml`:
@@ -61,6 +61,12 @@ loadings 0.8, 0.7, 0.5 and 0.3 from 18-29 to 50+) adds one workbook per age
 group and one pooled: `age_groups_pooled_alpha...`, `age_groups_18-29_alpha...`,
 `age_groups_30-39_alpha...`, `age_groups_40-49_alpha...` and
 `age_groups_50plus_alpha...`.
+
+The `small_groups` scenario adds one sample of 50 respondents per group and
+scale, drawn with the same seed: 12 workbooks such as
+`small_groups_marketing_sensorial_lima_n50_alpha0.868.xlsx` and
+`small_groups_satisfaccion_recoded_50plus_n50_alpha0.348.xlsx`. Only n=50 gets
+workbooks. Each has a matching CSV in `results/datasets/`.
 
 | Sheet         | Content                                                                                                     |
 | ------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -115,14 +121,17 @@ little; `findings.md` prints both.
 
 The cutpoints cut each item as worded. In Satisfaccion the apatico and
 problematico items are worded against satisfaccion and answered on the flipped
-scale, so their answered shares are the profile's shares in reverse order: lima
-gives about 44% Nunca and 8% Siempre there. Lima's excess of 4-5 answers holds
-for Marketing Sensorial and entusiasta, not for every Satisfaccion item.
+scale, so their answered shares are the profile's shares in reverse order. Lima
+still has more 4-5 answers on those mirrored items than california (13.0%
+against 12.1%). What differs is the other end: lima piles up at 1 (44% against
+22%).
 
 ## Scenarios
 
-Each is replicated about 1000 times (bootstrap: 200). Rows report mean alpha,
-the 2.5-97.5% band and the share of runs with alpha >= 0.7.
+Each is replicated about 1000 times (bootstrap: 200; `small_groups`: the
+bootstrap runs on 100 of the 1000 replicates of each row, to keep the whole run
+near 2.5 minutes). Rows report mean alpha, the 2.5-97.5% band and the share of
+runs with alpha >= 0.7.
 
 1. `loading_items`: loading 0.2 to 0.9 with 3, 5 and 15 items.
 2. `sample_size`: n = 20, 50, 100, 400.
@@ -148,12 +157,22 @@ the 2.5-97.5% band and the share of runs with alpha >= 0.7.
 12. `profiles_style_split`: Marketing Sensorial at the shared loading, once with
     only the profiles' styles (shared cutpoints) and once with only their
     cutpoints, to show which one drives the lima-california gap.
+13. `small_groups`: small groups of 30, 40, 50 and 200 respondents, for lima,
+    california and the four age groups (the loadings of `age_groups`, symmetric
+    answers, no styles), on Marketing Sensorial and on Satisfaccion recoded.
+    Besides the usual columns each row has `true_alpha` (the same setting at
+    200000 respondents), `false_pass` (share of runs with alpha >= 0.7 when
+    `true_alpha` is below it), `false_fail` (share of runs below 0.7 when
+    `true_alpha` is 0.7 or more; each is 0 for a group on the other side),
+    `median_ci_width` and `ci_coverage` of the 95% bootstrap interval.
+    `plots/small_groups.png` shows the alpha band per group at every size, with
+    the population alpha and the 0.7 line.
 
 ## R cross-check
 
 Python does not use R. The check confirms the Python alpha against
 `psych::alpha` on every generated dataset (tolerance 1e-6), including a lima and
-a california one.
+a california one and the 12 samples of 50 from the small groups.
 
 Install R and psych on Ubuntu:
 
