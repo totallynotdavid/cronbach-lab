@@ -218,20 +218,30 @@ also tend to cover slightly less than 95% in small samples.
 
 Everything in this section is an assumption of the simulation. The two profiles
 are invented to show what response habits can do to alpha. They are not measured
-on real Lima or California respondents. A profile sets the share of answers in
-each category, an extreme-response style (each respondent has a gain that
-stretches their score toward 1 and 5), an acquiescence style (each respondent
-has a tendency to agree that raises the answer to every item) and a loading.
+on real Lima or California respondents. A profile sets the cutpoints (the share
+of answers in each category before the styles act), an extreme-response style
+(each respondent has a gain that stretches their score toward 1 and 5), an
+acquiescence style (each respondent has a tendency to agree that raises the
+answer to every item) and a loading.
 
-| profile    | answers 1..5 (%)     | extreme sd | acquiescence sd | loading |
-| ---------- | -------------------- | ---------- | --------------- | ------- |
-| lima       | 6 / 6 / 13 / 30 / 45 | 0.5        | 0.5             | 0.7     |
-| california | 3 / 9 / 28 / 38 / 22 | 0.2        | 0.2             | 0.6     |
+| profile    | cutpoint shares 1..5 (%) | realised shares 1..5 (%)       | extreme sd | acquiescence sd | loading |
+| ---------- | ------------------------ | ------------------------------ | ---------- | --------------- | ------- |
+| lima       | 6 / 6 / 13 / 30 / 45     | 8.3 / 4.7 / 10.9 / 31.7 / 44.4 | 0.5        | 0.5             | 0.7     |
+| california | 3 / 9 / 28 / 38 / 22     | 3.6 / 8.5 / 27.6 / 38.5 / 21.8 | 0.2        | 0.2             | 0.6     |
 
-Three scales are scored, each with 200 respondents per profile: Marketing
-Sensorial pooled as 15 items (dimensions correlated 0.3), Satisfaccion pooled as
-is, and Satisfaccion with apatico and problematico reverse-scored. Cells show
-mean alpha and the share of runs >= 0.7.
+The cutpoint shares are what the cutpoints give before the styles act. Extreme
+responding stretches each respondent's score, so more answers fall on 1 and 5
+and the realised shares (a keyed item, a large simulated sample) differ from the
+cutpoint ones. Acquiescence is rescaled and leaves the shares alone.
+
+Three scales are scored, each with 200 respondents per profile. Marketing
+Sensorial is pooled as 15 items (dimensions correlated 0.3). Satisfaccion is
+pooled as 13 items and scored two ways. Its apatico and problematico items are
+worded against satisfaccion, so respondents answer them on the flipped scale.
+"As is" adds the raw answers, so those items run against entusiasta. "Recoded"
+reverse-scores them first. Acquiescence pulls a reverse-keyed item half as hard
+as a keyed one (an assumption). Cells show mean alpha and the share of runs >=
+0.7.
 
 ### Alpha per profile, and both profiles pooled
 
@@ -240,8 +250,8 @@ Profiles as assumed: they differ in cutpoints, style and loading.
 | scale                | lima        | california | pooled      |
 | -------------------- | ----------- | ---------- | ----------- |
 | marketing sensorial  | 0.87 (100%) | 0.74 (88%) | 0.84 (100%) |
-| satisfaccion as is   | 0.80 (100%) | 0.51 (0%)  | 0.75 (98%)  |
-| satisfaccion recoded | 0.76 (95%)  | 0.76 (97%) | 0.75 (99%)  |
+| satisfaccion as is   | 0.65 (15%)  | 0.44 (0%)  | 0.58 (0%)   |
+| satisfaccion recoded | 0.81 (100%) | 0.76 (99%) | 0.81 (100%) |
 
 ### Same loading, different response style only
 
@@ -251,12 +261,13 @@ same. Only the cutpoints and the response style differ.
 | scale                | lima        | california  | pooled      |
 | -------------------- | ----------- | ----------- | ----------- |
 | marketing sensorial  | 0.87 (100%) | 0.79 (100%) | 0.86 (100%) |
-| satisfaccion as is   | 0.80 (100%) | 0.57 (0%)   | 0.76 (100%) |
-| satisfaccion recoded | 0.76 (96%)  | 0.82 (100%) | 0.78 (100%) |
+| satisfaccion as is   | 0.66 (18%)  | 0.50 (0%)   | 0.60 (0%)   |
+| satisfaccion recoded | 0.81 (100%) | 0.83 (100%) | 0.83 (100%) |
 
-With identical loadings, lima still beats california by 0.08 on Marketing
-Sensorial and by 0.24 on Satisfaccion as is. Alpha moved and nothing about the
-construct did.
+With identical loadings the profiles still differ. Lima minus california is
++0.08 on Marketing Sensorial, +0.16 on Satisfaccion as is and -0.02 on
+Satisfaccion recoded. Alpha moved and nothing about the construct did, and the
+gap depends on how the scale is scored.
 
 ### Sensitivity to the strength of the style
 
@@ -268,18 +279,20 @@ loading. Strength is the standard deviation of the respondent trait. The plot is
 | -------------------- | ---------- | --------- | --------- | -------------- | -------------- |
 | marketing sensorial  | lima       | 0.74      | 0.80      | 0.74           | 0.94           |
 | marketing sensorial  | california | 0.68      | 0.72      | 0.68           | 0.94           |
-| satisfaccion as is   | lima       | 0.46      | 0.65      | 0.47           | 0.92           |
-| satisfaccion as is   | california | 0.36      | 0.49      | 0.36           | 0.92           |
-| satisfaccion recoded | lima       | 0.81      | 0.78      | 0.81           | 0.67           |
-| satisfaccion recoded | california | 0.77      | 0.74      | 0.77           | 0.57           |
+| satisfaccion as is   | lima       | 0.43      | 0.37      | 0.43           | 0.84           |
+| satisfaccion as is   | california | 0.35      | 0.32      | 0.35           | 0.85           |
+| satisfaccion recoded | lima       | 0.82      | 0.85      | 0.82           | 0.72           |
+| satisfaccion recoded | california | 0.77      | 0.78      | 0.77           | 0.63           |
 
 Acquiescence adds one factor shared by all items, whatever they say, so on a
 scale where every item points the same way it raises alpha: Marketing Sensorial
-goes from 0.74 to 0.94 for lima, and Satisfaccion as is from 0.47 to 0.92,
+goes from 0.74 to 0.94 for lima, and Satisfaccion as is from 0.43 to 0.84,
 although its three dimensions still run against each other. After
-reverse-scoring apatico and problematico the shared factor points in opposite
-directions on the two halves and alpha falls, from 0.81 to 0.67 for lima.
-Extreme responding moves alpha less than acquiescence in these runs.
+reverse-scoring apatico and problematico, the shared factor enters the
+entusiasta items with a plus sign and the recoded items with a minus sign, so it
+splits the scale instead of uniting it and alpha falls, from 0.82 to 0.72 for
+lima. Extreme responding moves alpha less than acquiescence on Marketing
+Sensorial.
 
 ### What alpha can and cannot tell here
 
@@ -289,12 +302,13 @@ it is 0.84, so the pooled value hides the weaker group.
 
 Alpha cannot tell why a group scores high or low. In the same-loading runs the
 construct is identical and alpha still differs, because answer habits add or
-remove shared variance. Lima passes 0.7 on Satisfaccion as is (0.80) and
-california does not (0.51) even though the scale pools dimensions that oppose
-each other. A pass can come from acquiescence, not from measuring one trait
-well. Pooled alpha also hides that the groups use the scale differently: it is
-one number from one covariance matrix, and a mixture of groups with different
-cutpoints and loadings gives a matrix that belongs to neither.
+remove shared variance. The sensitivity table shows the extreme case:
+Satisfaccion as is mixes items that run against each other, yet with strong
+acquiescence lima's alpha reaches 0.84 against 0.43 with none. A pass can come
+from acquiescence, not from measuring one trait well. Pooled alpha also hides
+that the groups use the scale differently: it is one number from one covariance
+matrix, and a mixture of groups with different cutpoints and loadings gives a
+matrix that belongs to neither.
 
 Telling a real difference in the construct from a difference in how the groups
 answer takes a multi-group invariance test (multi-group confirmatory factor
