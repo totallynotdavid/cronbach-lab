@@ -94,10 +94,10 @@ Two response styles are traits of the respondent, drawn with the latent trait.
 Acquiescence is a tendency to agree that shifts the answer to every item the
 same way, and half as much on a reverse-keyed item. Extreme response style is a
 gain on the respondent's score that pushes answers toward 1 and 5. Both are off
-by default. Acquiescence divides each item by `sqrt(1 + (pull * a)^2)` to keep
-unit variance, so the loading becomes nominal: a keyed item correlates with its
-trait `loading / sqrt(1 + a^2)`, about 0.63 for lima and 0.69 for california at
-loading 0.7.
+by default. With them the loading is nominal, because the styles rescale the
+score. `findings.md` prints the measured item-trait correlation of a keyed item
+with the styles on, from a large simulated sample: about 0.55 for lima and 0.67
+for california at loading 0.7.
 
 ### Location profiles (assumed)
 
