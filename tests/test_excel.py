@@ -6,7 +6,7 @@ import pytest
 from cronbach_lab.datasets import draw_datasets, write_datasets
 from cronbach_lab.excel import write_workbooks
 
-DATASETS = 9
+DATASETS = 9 + 12  # the general and profile ones, then a sample of 50 per small group and scale
 AGE_FILES = ["pooled", "18-29", "30-39", "40-49", "50plus"]
 
 
@@ -30,6 +30,15 @@ def test_one_workbook_per_dataset_per_profile_and_per_age_group(workbooks):
         assert any(n.startswith(f"age_groups_{part}_alpha") for n in names)
     for profile in ("lima", "california"):
         assert any(n.startswith(f"{profile}_marketing_sensorial_alpha") for n in names)
+
+
+def test_small_group_workbooks_hold_fifty_respondents_each(workbooks):
+    paths = sorted(workbooks.glob("small_groups_*_n50_alpha*.xlsx"))
+    assert len(paths) == 12
+    for scale, items in [("marketing_sensorial", 15), ("satisfaccion_recoded", 13)]:
+        for group in ["lima", "california", "18-29", "30-39", "40-49", "50plus"]:
+            (path,) = workbooks.glob(f"small_groups_{scale}_{group}_n50_alpha*.xlsx")
+            assert pd.read_excel(path, sheet_name="responses").shape == (50, items)
 
 
 def test_filename_alpha_matches_the_alpha_recomputed_from_the_responses_sheet(workbooks):
