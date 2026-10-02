@@ -4,13 +4,21 @@ version = "0.1.0"
 description = "Stress-test Cronbach's alpha on simulated Likert survey data"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["numpy", "pandas", "matplotlib"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "openpyxl>=3.1.5",
+]
 
 [project.scripts]
 cronbach-lab = "cronbach_lab.cli:main"
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "ruff>=0.16.10",
+]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]

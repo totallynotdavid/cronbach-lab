@@ -1,0 +1,22 @@
+[tools]
+python = "3.14.8"
+uv = "0.12.21"
+
+[env]
+UV_PYTHON = "3.14.8"
+
+[tasks.test]
+description = "Run pytest, including the R cross-check when Rscript and psych are present"
+run = "uv run pytest"
+
+[tasks.lint]
+description = "Lint with ruff"
+run = "uv run ruff check"
+
+[tasks.format]
+description = "Format with ruff"
+run = "uv run ruff format --line-length 100"
+
+[tasks.check]
+description = "Lint, then test"
+run = [{ task = "lint" }, { task = "test" }]
