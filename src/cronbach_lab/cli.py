@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from .datasets import write_datasets
+from .excel import write_workbooks
 from .report import write_findings, write_plots
 from .scenarios import run_all
 
@@ -13,7 +14,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser(
-        "run", help="run every scenario; write CSV, PNGs, findings.md and datasets"
+        "run", help="run every scenario; write CSV, PNGs, findings.md, datasets and workbooks"
     )
     run.add_argument("--out", type=Path, default=Path("results"))
     run.add_argument("--reps", type=int, default=1000, help="replicates per setting")
@@ -34,4 +35,5 @@ def main(argv=None):
     write_plots(results, args.out / "plots")
     write_findings(results, args.reps, args.out / "findings.md")
     write_datasets(args.out / "datasets", args.seed)
-    print(f"wrote {args.out}/results.csv, plots/, findings.md, datasets/")
+    write_workbooks(args.out / "xlsx", args.seed)
+    print(f"wrote {args.out}/results.csv, plots/, findings.md, datasets/, xlsx/")

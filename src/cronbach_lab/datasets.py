@@ -7,8 +7,10 @@ import pandas as pd
 
 from .alpha import cronbach_alpha, standardized_alpha
 from .generate import RESPONSE_SHAPES, cutpoints_from_probs, simulate
-from .scenarios import equal_loadings
+from .profiles import PROFILES, simulate_profile
+from .scenarios import AGE_GROUP_SIZE, AGE_LOADINGS, DEFAULT_K, equal_loadings
 from .survey import (
+    AGE_GROUPS,
     MARKETING_SENSORIAL,
     SATISFACCION,
     SATISFACCION_CORR,
@@ -27,7 +29,7 @@ def build_datasets(rng):
     satisfaccion = factor_index(SATISFACCION)
     marketing = factor_index(MARKETING_SENSORIAL)
     ceiling = cutpoints_from_probs(RESPONSE_SHAPES["ceiling"])
-    return {
+    datasets = {
         "equal_k5_n200": (simulate(200, equal_loadings(5), rng), generic(5)),
         "equal_k15_n400": (simulate(400, equal_loadings(15, 0.5), rng), generic(15)),
         "small_k3_n20": (simulate(20, equal_loadings(3, 0.7), rng), generic(3)),
@@ -60,6 +62,24 @@ def build_datasets(rng):
             item_names(MARKETING_SENSORIAL),
         ),
     }
+    for p in PROFILES.values():
+        x = simulate_profile(
+            p,
+            300,
+            equal_loadings(15, p.loading),
+            rng,
+            factor=marketing,
+            factor_corr=marketing_corr(0.3),
+        )
+        datasets[f"{p.name}_marketing_sensorial"] = (x, item_names(MARKETING_SENSORIAL))
+    return datasets
+
+
+def build_age_dataset(rng):
+    """Respondents with an age group, the loading falling from 0.8 (18-29) to 0.3 (50+)."""
+    group = np.repeat(np.arange(len(AGE_GROUPS)), AGE_GROUP_SIZE)
+    loadings = np.repeat(np.array(AGE_LOADINGS)[:, None], DEFAULT_K, axis=1)
+    return simulate(len(group), loadings, rng, group=group), np.array(AGE_GROUPS)[group]
 
 
 def write_datasets(out_dir, seed=1):
