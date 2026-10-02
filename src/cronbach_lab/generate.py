@@ -80,17 +80,18 @@ def latent_items(
     noise = rng.standard_normal((n, k)) * np.sqrt(1 - loading**2)
     x = loading * theta[:, factor] + noise
 
-    # Style traits draw from the RNG only when switched on, so a style-free
-    # sample is identical to one from before they existed.
+    # Style traits draw from the RNG only when switched on, so enabling none
+    # leaves the random stream untouched.
     if acquiescence:
         # The tendency is added on the answered scale: a respondent who agrees
         # raises keyed items and, less so, reverse-keyed ones. The reverse-keyed
         # items are flipped after cutting, so their shift here is negative.
         pull = np.ones(k) if reverse is None else np.where(reverse, -ACQUIESCENCE_ON_REVERSE, 1.0)
         tendency = acquiescence * rng.standard_normal(n)
-        # Dividing keeps the item variance at 1, so the cutpoints still give the
-        # category shares they were built for.
-        x = (x + tendency[:, None] * pull) / np.sqrt(1 + acquiescence**2)
+        # Item j now has variance 1 + (pull_j * acquiescence)**2. Dividing each item by
+        # its own sd keeps the variance at 1, so the cutpoints still give the category
+        # shares they were built for, on reverse-keyed items too.
+        x = (x + tendency[:, None] * pull) / np.sqrt(1 + (pull * acquiescence) ** 2)
     if extreme:
         x = x * np.exp(extreme * rng.standard_normal(n))[:, None]
     return x
