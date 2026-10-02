@@ -26,8 +26,16 @@ Needs [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
-uv run pytest                 # tests
 uv run cronbach-lab run       # about a minute
+```
+
+With [mise](https://mise.jdx.dev/) the tools are pinned in `mise.toml`:
+
+```sh
+mise run test      # pytest, including the R cross-check when R and psych are present
+mise run lint      # ruff check
+mise run format    # ruff format --line-length 100
+mise run check     # lint, then test
 ```
 
 `cronbach-lab run` writes to `results/` (change with `--out`; `--reps` sets the
@@ -39,8 +47,25 @@ replicates per setting, default 1000; `--seed` the random seed, default 1):
 | `results/plots/*.png`    | one plot per scenario                                                            |
 | `results/findings.md`    | the edges and the reasons, with numbers from the run                             |
 | `results/datasets/*.csv` | simulated datasets for the R cross-check                                         |
+| `results/xlsx/*.xlsx`    | one Excel workbook per group of respondents, alpha in the file name              |
 
 `results/` is committed for reading. Rerunning with the same seed reproduces it.
+
+### Excel workbooks
+
+Each of the 9 datasets (the 7 general ones plus one per profile,
+`lima_marketing_sensorial` and `california_marketing_sensorial`) gets a workbook
+named `<dataset>_alpha<raw alpha>.xlsx`, for example
+`equal_k5_n200_alpha0.647.xlsx`. The age-group dataset (four groups of 100,
+loadings 0.8, 0.7, 0.5 and 0.3 from 18-29 to 50+) adds one workbook per age
+group and one pooled: `age_groups_pooled_alpha...`, `age_groups_18-29_alpha...`,
+`age_groups_30-39_alpha...`, `age_groups_40-49_alpha...` and
+`age_groups_50plus_alpha...`.
+
+| Sheet         | Content                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| `responses`   | one row per respondent, one column per item, plus `age_group` for the age-group workbooks                   |
+| `reliability` | raw alpha, standardized alpha, number of items, number of respondents, and the alpha with each item dropped |
 
 ## Layout
 
@@ -50,7 +75,10 @@ replicates per setting, default 1000; `--seed` the random seed, default 1):
 | `src/cronbach_lab/alpha.py`     | raw alpha, standardized alpha, alpha-if-dropped, bootstrap interval |
 | `src/cronbach_lab/survey.py`    | the survey's dimensions and assumed factor correlations             |
 | `src/cronbach_lab/scenarios.py` | the scenarios below                                                 |
+| `src/cronbach_lab/profiles.py`  | the assumed lima and california profiles                            |
 | `src/cronbach_lab/report.py`    | plots and `findings.md`                                             |
+| `src/cronbach_lab/datasets.py`  | the simulated datasets                                              |
+| `src/cronbach_lab/excel.py`     | the Excel workbooks                                                 |
 | `r/crosscheck.R`                | R cross-check against `psych::alpha`                                |
 
 ## The model
@@ -61,6 +89,22 @@ ceiling. Items have unit variance before cutting, so the loading is the
 item-trait correlation. Optional per-age-group shifts in theta or loadings,
 reverse-keyed items, one factor per dimension, and bad respondents (random
 answers, straight-lining). The RNG is seeded.
+
+Two response styles are traits of the respondent, drawn with the latent trait.
+Acquiescence is a tendency to agree that shifts the answer to every item the
+same way, and half as much on a reverse-keyed item. Extreme response style is a
+gain on the respondent's score that pushes answers toward 1 and 5. Both are off
+by default.
+
+### Location profiles (assumed)
+
+A profile in `profiles.py` bundles answer shares for 1..5, an extreme-response
+strength, an acquiescence strength and a loading. `lima` has more answers on 4-5
+and on both extremes, with strong styles and loading 0.7. `california` is more
+moderate (more 3s and 4s, still skewed toward agreement), with weaker styles and
+loading 0.6. **Every one of these numbers is an assumption**, chosen to show
+what response habits can do to alpha. None comes from real Lima or California
+respondents.
 
 ## Scenarios
 
@@ -80,11 +124,18 @@ the 2.5-97.5% band and the share of runs with alpha >= 0.7.
 7. `bad_items`: random responders, straight-liners, a pure-noise item and one
    wrongly reversed item, with alpha-if-dropped flagging the planted item.
 8. `bootstrap_interval`: width and coverage of the 95% bootstrap interval.
+9. `profiles`: Marketing Sensorial, Satisfaccion as is and Satisfaccion with
+   apatico and problematico reverse-scored, for each profile and both pooled.
+10. `profiles_same_loading`: the same, with one loading for both profiles, so
+    only cutpoints and response style differ.
+11. `response_style`: alpha as the extreme-response or acquiescence strength
+    grows from 0 to 1.
 
 ## R cross-check
 
 Python does not use R. The check confirms the Python alpha against
-`psych::alpha` on several generated datasets (tolerance 1e-6).
+`psych::alpha` on every generated dataset (tolerance 1e-6), including a lima and
+a california one.
 
 Install R and psych on Ubuntu:
 
