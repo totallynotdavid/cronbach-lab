@@ -1,6 +1,7 @@
 """Plots and findings.md, both built from the results table."""
 
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 
 import matplotlib
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .profiles import PROFILES, realised_shares
-from .scenarios import DEFAULT_N, ITEM_COUNTS, THRESHOLD
+from .scenarios import DEFAULT_N, ITEM_COUNTS, SAME_LOADING, THRESHOLD
 
 
 def plot_loading_items(results, path):
@@ -160,6 +161,7 @@ def profile_findings(results):
             "extreme sd",
             "acquiescence sd",
             "loading",
+            "keyed item-trait r",
         ],
         [
             [
@@ -169,6 +171,7 @@ def profile_findings(results):
                 p.extreme,
                 p.acquiescence,
                 p.loading,
+                f"{p.realised_loading:.2f}",
             ]
             for p in PROFILES.values()
         ],
@@ -201,6 +204,34 @@ def profile_findings(results):
     )
     gap = lambda scenario, scale: at(scenario, scale, "lima") - at(scenario, scale, "california")
 
+    gap_marketing = gap("profiles_same_loading", marketing)
+    gap_as_is = gap("profiles_same_loading", as_is)
+    gap_recoded = gap("profiles_same_loading", recoded)
+    split_gap = lambda variant: (
+        at("profiles_style_split", marketing, f"lima, {variant}")
+        - at("profiles_style_split", marketing, f"california, {variant}")
+    )
+    gap_style_only = split_gap("style only")
+    gap_cutpoints_only = split_gap("cutpoints only")
+
+    same_loading_r = {
+        p.name: replace(p, loading=SAME_LOADING).realised_loading for p in PROFILES.values()
+    }
+    lima_answered = realised_shares(PROFILES["lima"])[::-1]
+    lima_nunca, lima_siempre = 100 * lima_answered[0], 100 * lima_answered[4]
+
+    acquiescence = lambda scale: (
+        sensitivity(scale, "lima", "acquiescence", 0.0),
+        sensitivity(scale, "lima", "acquiescence", 1.0),
+    )
+    marketing_off, marketing_on = acquiescence(marketing)
+    as_is_off, as_is_on = acquiescence(as_is)
+    recoded_off, recoded_on = acquiescence(recoded)
+
+    california_marketing = at("profiles", marketing, "california")
+    lima_marketing = at("profiles", marketing, "lima")
+    pooled_marketing = at("profiles", marketing, "pooled")
+
     return f"""## 9. Location profiles: lima and california
 
 Everything in this section is an assumption of the simulation. The two profiles
@@ -217,6 +248,11 @@ responding stretches each respondent's score, so more answers fall on 1 and 5
 and the realised shares (a keyed item, a large simulated sample) differ from the
 cutpoint ones. Acquiescence is rescaled and leaves the shares alone.
 
+The loading is nominal. It is the item-trait correlation only without
+acquiescence. With it, each item is divided by sqrt(1 + (pull * a)^2), where a
+is the acquiescence sd and the pull is 1 on a keyed item, so a keyed item
+correlates with its trait loading / sqrt(1 + a^2). That is the last column.
+
 Three scales are scored, each with {DEFAULT_N} respondents per profile.
 Marketing Sensorial is pooled as 15 items (dimensions correlated 0.3).
 Satisfaccion is pooled as 13 items and scored two ways. Its apatico and
@@ -226,24 +262,37 @@ entusiasta. "Recoded" reverse-scores them first. Acquiescence pulls a
 reverse-keyed item half as hard as a keyed one (an assumption). Cells show mean
 alpha and the share of runs >= {THRESHOLD}.
 
+A profile's cutpoints cut each item as worded, before the flip. The apatico and
+problematico items are answered flipped, so on them the answered shares are the
+profile's shares in reverse order: lima gives {lima_nunca:.0f}% Nunca and
+{lima_siempre:.0f}% Siempre there, the opposite of its keyed items. Lima's higher
+share of 4-5 answers therefore holds for Marketing Sensorial and for entusiasta,
+not for every Satisfaccion item as answered.
+
 ### Alpha per profile, and both profiles pooled
 
 Profiles as assumed: they differ in cutpoints, style and loading.
 
 {table("profiles")}
 
-### Same loading, different response style only
+### Same loading, with each profile's own cutpoints and style
 
-Both profiles get loading 0.7, so the construct and its measurement are the same.
-Only the cutpoints and the response style differ.
+Both profiles get the nominal loading {SAME_LOADING}, so the construct is the same. Each keeps its
+own cutpoints and its own response style. The nominal loading is shared, the
+measurement is not: with acquiescence the item-trait correlation of a keyed item is
+{same_loading_r["lima"]:.2f} for lima and {same_loading_r["california"]:.2f} for california.
 
 {table("profiles_same_loading")}
 
-With identical loadings the profiles still differ. Lima minus california is {
-        gap("profiles_same_loading", marketing):+.2f} on Marketing Sensorial, {
-        gap("profiles_same_loading", as_is):+.2f} on Satisfaccion as is and {
-        gap("profiles_same_loading", recoded):+.2f} on Satisfaccion recoded. Alpha moved and
-nothing about the construct did, and the gap depends on how the scale is scored.
+With the same nominal loading the profiles still differ. Lima minus california is
+{gap_marketing:+.2f} on Marketing Sensorial, {gap_as_is:+.2f} on Satisfaccion as is and
+{gap_recoded:+.2f} on Satisfaccion recoded. Alpha moved and the construct did not, and the
+gap depends on how the scale is scored.
+
+Marketing Sensorial separates the two sources. Give both profiles the same symmetric
+cutpoints and keep their styles: lima minus california is {gap_style_only:+.3f}. Keep
+their own cutpoints and drop the styles: it is {gap_cutpoints_only:+.3f}. The gap
+is mostly response style, not the cutpoints.
 
 ### Sensitivity to the strength of the style
 
@@ -253,35 +302,29 @@ Strength is the standard deviation of the respondent trait. The plot is
 
 {sweep}
 
-Acquiescence adds one factor shared by all items, whatever they say, so on a
-scale where every item points the same way it raises alpha: Marketing Sensorial
-goes from {sensitivity(marketing, "lima", "acquiescence", 0.0):.2f} to {
-        sensitivity(marketing, "lima", "acquiescence", 1.0):.2f} for lima, and Satisfaccion as is
-from {sensitivity(as_is, "lima", "acquiescence", 0.0):.2f} to {
-        sensitivity(as_is, "lima", "acquiescence", 1.0):.2f}, although its three dimensions
-still run against each other. After reverse-scoring apatico and problematico, the
-shared factor enters the entusiasta items with a plus sign and the recoded items
-with a minus sign, so it splits the scale instead of uniting it and alpha falls,
-from {sensitivity(recoded, "lima", "acquiescence", 0.0):.2f} to {
-        sensitivity(recoded, "lima", "acquiescence", 1.0):.2f} for lima. Extreme responding moves
-alpha less than acquiescence on Marketing Sensorial.
+Acquiescence adds one factor to every answer as given, whatever the item says,
+so it raises alpha on a scale scored from those answers. Marketing Sensorial,
+where every item points the same way, goes from {marketing_off:.2f} to {marketing_on:.2f} for lima.
+Satisfaccion as is, whose dimensions run against each other, also rises, from
+{as_is_off:.2f} to {as_is_on:.2f}, because the raw answers all carry the shared factor with the
+same sign. After reverse-scoring apatico and problematico, the shared factor
+enters the entusiasta items with a plus sign and the recoded items with a minus
+sign, so it splits the scale instead of uniting it and alpha falls, from
+{recoded_off:.2f} to {recoded_on:.2f} for lima. Extreme responding moves alpha less than
+acquiescence on Marketing Sensorial.
 
 ### What alpha can and cannot tell here
 
 Alpha computed within each group does detect a group whose items hang together
-less: california Marketing Sensorial sits at {at("profiles", marketing, "california"):.2f} against {
-        at("profiles", marketing, "lima"):.2f} for lima. Pooled it is {
-        at("profiles", marketing, "pooled"):.2f}, so the pooled value hides the weaker group.
+less: california Marketing Sensorial sits at {california_marketing:.2f} against {lima_marketing:.2f}
+for lima. Pooled it is {pooled_marketing:.2f}, so the pooled value hides the weaker group.
 
 Alpha cannot tell why a group scores high or low. In the same-loading runs the
-construct is identical and alpha still differs, because answer habits add or
-remove shared variance. The sensitivity table shows the extreme case:
-Satisfaccion as is mixes items that run against each other, yet with strong
-acquiescence lima's alpha reaches {sensitivity(as_is, "lima", "acquiescence", 1.0):.2f} against {
-        sensitivity(
-            as_is, "lima", "acquiescence", 0.0
-        ):.2f} with none. A pass can come from acquiescence,
-not from measuring one trait well. Pooled alpha also hides that the groups use the scale
+construct and the nominal loading are identical and alpha still differs, because
+answer habits add or remove shared variance. The sensitivity table shows the
+extreme case: Satisfaccion as is mixes items that run against each other, yet
+with strong acquiescence lima's alpha reaches {as_is_on:.2f} against {as_is_off:.2f} with none. A
+pass can come from acquiescence, not from measuring one trait well. Pooled alpha also hides that the groups use the scale
 differently: it is one number from one covariance matrix, and a mixture of groups
 with different cutpoints and loadings gives a matrix that belongs to neither.
 
