@@ -2,12 +2,13 @@
 
 ## Install
 
-The project requires Python 3.11 or newer and uses
-[uv](https://docs.astral.sh/uv/) to install its dependencies. The repository's
-`mise.toml` pins Python 3.14.8 and uv 0.12.21 for contributors who use mise.
+The project requires Python 3.11 or newer. The repository's `mise.toml` pins
+Python and [uv](https://docs.astral.sh/uv/), and `mise run install` installs the
+locked dependencies:
 
 ```sh
-uv sync
+mise install
+mise run install
 ```
 
 ## Run the lab
@@ -22,7 +23,7 @@ Use a different output directory, replicate count, or seed when exploring a
 change:
 
 ```sh
-uv run cronbach-lab run --out /tmp/cronbach-lab-run --reps 100 --seed 7
+uv run cronbach-lab run --out "$TMPDIR/cronbach-lab-run" --reps 100 --seed 7
 ```
 
 `--reps` is the requested number of simulated samples for a scenario setting.
@@ -42,7 +43,7 @@ The `datasets` command writes the CSV inputs and the Python alpha reference
 without running scenarios, plots, findings, or workbooks:
 
 ```sh
-uv run cronbach-lab datasets --out /tmp/cronbach-lab-datasets --seed 1
+uv run cronbach-lab datasets --out "$TMPDIR/cronbach-lab-datasets" --seed 1
 ```
 
 The default directory is `results/datasets/`. Use the same seed when comparing
@@ -55,13 +56,13 @@ The cross-check requires R and the `psych` package. It uses
 reverse items with negative correlations.
 
 ```sh
-Rscript r/crosscheck.R /tmp/cronbach-lab-datasets
+Rscript r/crosscheck.R "$TMPDIR/cronbach-lab-datasets"
 ```
 
 Pass one CSV instead to print `psych::alpha` for that file:
 
 ```sh
-Rscript r/crosscheck.R /tmp/cronbach-lab-datasets/equal_k5_n200.csv
+Rscript r/crosscheck.R "$TMPDIR/cronbach-lab-datasets/equal_k5_n200.csv"
 ```
 
 The directory form exits with status 1 when a raw or standardized alpha differs

@@ -5,16 +5,18 @@ measures Cronbach's alpha under different item, respondent, and response-style
 conditions. It does not estimate the reliability of a real questionnaire, and
 its Python run does not require R.
 
-Install the project with [uv](https://docs.astral.sh/uv/):
+Install the pinned tools and the locked dependencies with
+[mise](https://mise.jdx.dev/):
 
 ```sh
-uv sync
+mise install
+mise run install
 ```
 
 Write the datasets used by the R cross-check:
 
 ```sh
-uv run cronbach-lab datasets --out /tmp/cronbach-lab-datasets
+uv run cronbach-lab datasets --out "$TMPDIR/cronbach-lab-datasets"
 ```
 
 Run every scenario and write the complete report:
