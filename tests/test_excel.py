@@ -1,29 +1,33 @@
 import re
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from cronbach_lab.datasets import draw_datasets, write_datasets
 from cronbach_lab.excel import write_workbooks
+from cronbach_lab.generate import Array
 
 DATASETS = 9 + 12  # the general and profile ones, then a sample of 50 per small group and scale
 AGE_FILES = ["pooled", "18-29", "30-39", "40-49", "50plus"]
 
 
-def alpha_from_variances(items):
+def alpha_from_variances(items: Array) -> float:
     # Written out again here so the check does not reuse the code under test.
     k = items.shape[1]
-    return k / (k - 1) * (1 - items.var(axis=0, ddof=1).sum() / items.sum(axis=1).var(ddof=1))
+    return float(
+        k / (k - 1) * (1 - items.var(axis=0, ddof=1).sum() / items.sum(axis=1).var(ddof=1))
+    )
 
 
 @pytest.fixture(scope="module")
-def workbooks(tmp_path_factory):
+def workbooks(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("xlsx")
     write_workbooks(out, *draw_datasets())
     return out
 
 
-def test_one_workbook_per_dataset_per_profile_and_per_age_group(workbooks):
+def test_one_workbook_per_dataset_per_profile_and_per_age_group(workbooks: Path) -> None:
     names = sorted(p.stem for p in workbooks.glob("*.xlsx"))
     assert len(names) == DATASETS + len(AGE_FILES)
     for part in AGE_FILES:
@@ -32,7 +36,7 @@ def test_one_workbook_per_dataset_per_profile_and_per_age_group(workbooks):
         assert any(n.startswith(f"{profile}_marketing_sensorial_alpha") for n in names)
 
 
-def test_small_group_workbooks_hold_fifty_respondents_each(workbooks):
+def test_small_group_workbooks_hold_fifty_respondents_each(workbooks: Path) -> None:
     paths = sorted(workbooks.glob("small_groups_*_n50_alpha*.xlsx"))
     assert len(paths) == 12
     for scale, items in [("marketing_sensorial", 15), ("satisfaccion_recoded", 13)]:
@@ -41,15 +45,18 @@ def test_small_group_workbooks_hold_fifty_respondents_each(workbooks):
             assert pd.read_excel(path, sheet_name="responses").shape == (50, items)
 
 
-def test_filename_alpha_matches_the_alpha_recomputed_from_the_responses_sheet(workbooks):
+def test_filename_alpha_matches_the_alpha_recomputed_from_the_responses_sheet(
+    workbooks: Path,
+) -> None:
     for path in workbooks.glob("*.xlsx"):
         sheets = pd.read_excel(path, sheet_name=None)
         assert set(sheets) == {"responses", "reliability"}
 
         responses = sheets["responses"].drop(columns="age_group", errors="ignore")
         recomputed = alpha_from_variances(responses.to_numpy(dtype=float))
-        in_name = float(re.search(r"_alpha(\d\.\d{3})\.xlsx$", path.name).group(1))
-        assert in_name == pytest.approx(recomputed, abs=0.0005), path.name
+        match = re.search(r"_alpha(\d\.\d{3})\.xlsx$", path.name)
+        assert match, path.name
+        assert float(match.group(1)) == pytest.approx(recomputed, abs=0.0005), path.name
 
         reliability = sheets["reliability"].set_index("metric")["value"]
         assert reliability["raw alpha"] == pytest.approx(recomputed, abs=1e-12)
@@ -58,7 +65,7 @@ def test_filename_alpha_matches_the_alpha_recomputed_from_the_responses_sheet(wo
         assert 0 < reliability["standardized alpha"] < 1
 
 
-def test_alpha_if_dropped_rows_match_a_scale_without_that_item(workbooks):
+def test_alpha_if_dropped_rows_match_a_scale_without_that_item(workbooks: Path) -> None:
     path = next(workbooks.glob("equal_k5_n200_alpha*.xlsx"))
     sheets = pd.read_excel(path, sheet_name=None)
     responses, reliability = sheets["responses"], sheets["reliability"].set_index("metric")["value"]
@@ -69,13 +76,15 @@ def test_alpha_if_dropped_rows_match_a_scale_without_that_item(workbooks):
         )
 
 
-def test_age_workbooks_hold_their_group_and_the_oldest_group_is_least_reliable(workbooks):
+def test_age_workbooks_hold_their_group_and_the_oldest_group_is_least_reliable(
+    workbooks: Path,
+) -> None:
     pooled = next(workbooks.glob("age_groups_pooled_alpha*.xlsx"))
     pooled_age = pd.read_excel(pooled, sheet_name="responses")["age_group"]
     assert list(pooled_age.unique()) == ["18-29", "30-39", "40-49", "50+"]
 
-    alphas = {}
-    for part, label in zip(AGE_FILES[1:], ["18-29", "30-39", "40-49", "50+"]):
+    alphas: dict[str, float] = {}
+    for part, label in zip(AGE_FILES[1:], ["18-29", "30-39", "40-49", "50+"], strict=True):
         path = next(workbooks.glob(f"age_groups_{part}_alpha*.xlsx"))
         responses = pd.read_excel(path, sheet_name="responses")
         assert set(responses["age_group"]) == {label}
@@ -84,7 +93,9 @@ def test_age_workbooks_hold_their_group_and_the_oldest_group_is_least_reliable(w
     assert alphas["18-29"] > 0.7 > alphas["50+"]
 
 
-def test_workbook_answers_equal_the_csv_dataset_of_the_same_name(workbooks, tmp_path):
+def test_workbook_answers_equal_the_csv_dataset_of_the_same_name(
+    workbooks: Path, tmp_path: Path
+) -> None:
     write_datasets(tmp_path, draw_datasets()[0])
     for csv in tmp_path.glob("*.csv"):
         if csv.stem == "python_alpha":
@@ -95,7 +106,9 @@ def test_workbook_answers_equal_the_csv_dataset_of_the_same_name(workbooks, tmp_
         )
 
 
-def test_rewriting_replaces_its_own_workbooks_from_an_earlier_seed_and_keeps_other_files(tmp_path):
+def test_rewriting_replaces_its_own_workbooks_from_an_earlier_seed_and_keeps_other_files(
+    tmp_path: Path,
+) -> None:
     mine = tmp_path / "my_own_notes.xlsx"
     mine.write_bytes(b"not ours")
     first = write_workbooks(tmp_path, *draw_datasets(seed=1))

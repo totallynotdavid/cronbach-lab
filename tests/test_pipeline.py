@@ -11,14 +11,14 @@ from cronbach_lab.datasets import draw_datasets, write_datasets
 CROSSCHECK = Path(__file__).parents[1] / "r" / "crosscheck.R"
 
 
-def r_has_psych():
+def r_has_psych() -> bool:
     if shutil.which("Rscript") is None:
         return False
     probe = subprocess.run(["Rscript", "-e", "library(psych)"], capture_output=True, check=False)
     return probe.returncode == 0
 
 
-def test_run_writes_csv_plots_and_findings(tmp_path):
+def test_run_writes_csv_plots_and_findings(tmp_path: Path) -> None:
     out = tmp_path / "out"
     main(["run", "--out", str(out), "--reps", "5"])
 
@@ -61,7 +61,7 @@ def test_run_writes_csv_plots_and_findings(tmp_path):
 
 
 @pytest.mark.skipif(not r_has_psych(), reason="Rscript with the psych package is not installed")
-def test_r_psych_agrees_with_python(tmp_path):
+def test_r_psych_agrees_with_python(tmp_path: Path) -> None:
     write_datasets(tmp_path, draw_datasets()[0])
     done = subprocess.run(
         ["Rscript", str(CROSSCHECK), str(tmp_path)], capture_output=True, text=True, check=False
@@ -71,10 +71,10 @@ def test_r_psych_agrees_with_python(tmp_path):
 
 
 @pytest.mark.skipif(not r_has_psych(), reason="Rscript with the psych package is not installed")
-def test_r_crosscheck_fails_when_python_value_is_wrong(tmp_path):
+def test_r_crosscheck_fails_when_python_value_is_wrong(tmp_path: Path) -> None:
     write_datasets(tmp_path, draw_datasets()[0])
     reference = pd.read_csv(tmp_path / "python_alpha.csv")
-    reference.loc[0, "raw_alpha"] += 1e-3
+    reference.loc[0, "raw_alpha"] = float(reference["raw_alpha"].iloc[0]) + 1e-3
     reference.to_csv(tmp_path / "python_alpha.csv", index=False)
     done = subprocess.run(
         ["Rscript", str(CROSSCHECK), str(tmp_path)], capture_output=True, text=True, check=False
