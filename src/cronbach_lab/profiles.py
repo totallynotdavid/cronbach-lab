@@ -5,10 +5,11 @@ real survey or taken from a study of Lima or California respondents.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
-from .generate import cutpoints_from_probs, latent_draw, simulate
+from .generate import Array, cutpoints_from_probs, latent_draw, simulate
 
 
 @dataclass(frozen=True)
@@ -17,7 +18,7 @@ class Profile:
     # Share of answers in categories 1..5 that the cutpoints give before the styles act.
     # Extreme responding stretches scores outward, so the realised shares differ:
     # see `realised_shares`.
-    probs: tuple
+    probs: tuple[float, ...]
     extreme: float  # extreme response style: sd of the log gain, see generate.latent_draw
     acquiescence: float  # sd of the tendency to agree, see generate.latent_draw
     # Nominal loading, the same for every item. It is the item-trait correlation only
@@ -35,7 +36,9 @@ PROFILES = {
 }
 
 
-def simulate_profile(profile, n, loadings, rng, **kwargs):
+def simulate_profile(
+    profile: Profile, n: int, loadings: Array, rng: np.random.Generator, **kwargs: Any
+) -> Array:
     """`simulate` with the profile's cutpoints and response style. The loadings stay the caller's."""
     return simulate(
         n,
@@ -48,13 +51,13 @@ def simulate_profile(profile, n, loadings, rng, **kwargs):
     )
 
 
-def realised_shares(profile, n=200_000, seed=0):
+def realised_shares(profile: Profile, n: int = 200_000, seed: int = 0) -> Array:
     """Share of answers 1..5 on a keyed item once the styles have acted."""
     x = simulate_profile(profile, n, np.array([profile.loading]), np.random.default_rng(seed))
     return np.bincount(x.ravel(), minlength=6)[1:] / x.size
 
 
-def item_trait_correlation(profile, n=200_000, seed=0):
+def item_trait_correlation(profile: Profile, n: int = 200_000, seed: int = 0) -> float:
     """Correlation of a keyed item's continuous score with its own trait, styles on.
 
     Measured on a large simulated sample, before the score is cut into categories.
@@ -66,4 +69,4 @@ def item_trait_correlation(profile, n=200_000, seed=0):
         extreme=profile.extreme,
         acquiescence=profile.acquiescence,
     )
-    return np.corrcoef(theta[:, 0], x[:, 0])[0, 1]
+    return float(np.corrcoef(theta[:, 0], x[:, 0])[0, 1])

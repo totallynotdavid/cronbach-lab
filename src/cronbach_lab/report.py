@@ -1,20 +1,23 @@
 """Plots and findings.md, both built from the results table."""
 
 import textwrap
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from .profiles import PROFILES, item_trait_correlation, realised_shares
 from .scenarios import DEFAULT_N, ITEM_COUNTS, SAME_LOADING, THRESHOLD, WORKBOOK_N
 
 
-def plot_loading_items(results, path):
+def plot_loading_items(results: pd.DataFrame, path: Path) -> None:
     d = results[results.scenario == "loading_items"]
     fig, (alpha_ax, share_ax) = plt.subplots(1, 2, figsize=(11, 4))
     for k, g in d.groupby("k"):
@@ -30,7 +33,7 @@ def plot_loading_items(results, path):
     plt.close(fig)
 
 
-def plot_bars(results, scenario, path):
+def plot_bars(results: pd.DataFrame, scenario: str, path: Path) -> None:
     """One horizontal bar per setting: mean alpha, with the 2.5-97.5% band as whiskers."""
     d = results[results.scenario == scenario].iloc[::-1]
     fig, ax = plt.subplots(figsize=(9, 0.4 * len(d) + 1.5))
@@ -51,12 +54,12 @@ def plot_bars(results, scenario, path):
     plt.close(fig)
 
 
-def plot_response_style(results, path):
+def plot_response_style(results: pd.DataFrame, path: Path) -> None:
     """Mean alpha against the strength of one style trait, a panel per scale."""
     d = results[results.scenario == "response_style"]
     scales = d.scale.unique()
     fig, axes = plt.subplots(1, len(scales), figsize=(4.5 * len(scales), 4), sharey=True)
-    for ax, scale in zip(axes, scales):
+    for ax, scale in zip(axes, scales, strict=True):
         for (profile, style), g in d[d.scale == scale].groupby(["profile", "style"]):
             ax.plot(
                 g.strength,
@@ -74,13 +77,13 @@ def plot_response_style(results, path):
     plt.close(fig)
 
 
-def plot_small_groups(results, path):
+def plot_small_groups(results: pd.DataFrame, path: Path) -> None:
     """Alpha band per group at each sample size, a panel per scale, with the population alpha."""
     d = results[results.scenario == "small_groups"]
     scales = d.scale.unique()
     sizes = sorted(d.n.unique())
     fig, axes = plt.subplots(1, len(scales), figsize=(6 * len(scales), 5.5), sharey=True)
-    for ax, scale in zip(axes, scales):
+    for ax, scale in zip(axes, scales, strict=True):
         g = d[d.scale == scale]
         groups = list(g.group.unique())
         for j, n in enumerate(sizes):
@@ -109,7 +112,7 @@ def plot_small_groups(results, path):
     plt.close(fig)
 
 
-def write_plots(results, out_dir):
+def write_plots(results: pd.DataFrame, out_dir: str | Path) -> None:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     plot_loading_items(results, out_dir / "loading_items.png")
@@ -120,16 +123,19 @@ def write_plots(results, out_dir):
     plot_small_groups(results, out_dir / "small_groups.png")
 
 
-def md_table(headers, rows):
-    """Markdown table with padded columns, laid out as prettier would."""
-    rows = [[str(cell) for cell in row] for row in rows]
-    widths = [max(len(c) for c in column) for column in zip(headers, *rows)]
-    line = lambda cells: "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths)) + " |"
+def md_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
+    """Markdown table with padded columns, laid out as oxfmt would."""
+    cells = [[str(cell) for cell in row] for row in rows]
+    widths = [max(len(c) for c in column) for column in zip(headers, *cells, strict=True)]
+
+    def line(row: Sequence[str]) -> str:
+        return "| " + " | ".join(c.ljust(w) for c, w in zip(row, widths, strict=True)) + " |"
+
     rule = "| " + " | ".join("-" * w for w in widths) + " |"
-    return "\n".join([line(headers), rule] + [line(row) for row in rows])
+    return "\n".join([line(headers), rule, *(line(row) for row in cells)])
 
 
-def rows_of(results, scenario, extra=()):
+def rows_of(results: pd.DataFrame, scenario: str, extra: Sequence[str] = ()) -> list[list[Any]]:
     """Table rows for one scenario: setting, mean, band, share passing, plus extra columns."""
     d = results[results.scenario == scenario]
     return [
@@ -144,20 +150,20 @@ def rows_of(results, scenario, extra=()):
     ]
 
 
-def scenario_table(results, scenario, extra=()):
-    headers = ["setting", "mean alpha", "2.5-97.5% band", "runs >= 0.7"] + list(extra)
+def scenario_table(results: pd.DataFrame, scenario: str, extra: Sequence[str] = ()) -> str:
+    headers = ["setting", "mean alpha", "2.5-97.5% band", "runs >= 0.7", *extra]
     return md_table(headers, rows_of(results, scenario, extra))
 
 
-def one(results, scenario, setting):
+def one(results: pd.DataFrame, scenario: str, setting: str) -> Any:
     d = results[(results.scenario == scenario) & (results.setting == setting)]
     return d.iloc[0]
 
 
-def loading_edges(results):
+def loading_edges(results: pd.DataFrame) -> list[list[Any]]:
     """Per item count: the loading needed for alpha 0.7 in theory and in the simulation."""
     d = results[results.scenario == "loading_items"]
-    rows = []
+    rows: list[list[Any]] = []
     for k in ITEM_COUNTS:
         g = d[d.k == k]
         # Standardized alpha = k*rho/(1+(k-1)*rho) with rho = loading**2 for equal
@@ -170,23 +176,25 @@ def loading_edges(results):
     return rows
 
 
-def loading_grid(results):
+def loading_grid(results: pd.DataFrame) -> str:
     d = results[results.scenario == "loading_items"]
-    rows = []
+    rows: list[list[str]] = []
     for loading, g in d.groupby("loading"):
         by_k = {r.k: r for r in g.itertuples()}
         rows.append(
             [f"{loading:.2f}"]
             + [f"{by_k[k].mean_alpha:.2f} ({by_k[k].share_ge_0_7:.0%})" for k in ITEM_COUNTS]
         )
-    return md_table(["loading"] + [f"{k} items" for k in ITEM_COUNTS], rows)
+    return md_table(["loading", *(f"{k} items" for k in ITEM_COUNTS)], rows)
 
 
-def profile_findings(results):
-    at = lambda scenario, scale, profile: one(results, scenario, f"{scale}, {profile}").mean_alpha
-    sensitivity = lambda scale, profile, style, strength: (
-        one(results, "response_style", f"{scale}, {profile}, {style}={strength}").mean_alpha
-    )
+def profile_findings(results: pd.DataFrame) -> str:
+    def at(scenario: str, scale: str, profile: str) -> float:
+        return float(one(results, scenario, f"{scale}, {profile}").mean_alpha)
+
+    def sensitivity(scale: str, profile: str, style: str, strength: float) -> float:
+        setting = f"{scale}, {profile}, {style}={strength}"
+        return float(one(results, "response_style", setting).mean_alpha)
 
     marketing, as_is, recoded = "marketing sensorial", "satisfaccion as is", "satisfaccion recoded"
     assumptions = md_table(
@@ -213,13 +221,15 @@ def profile_findings(results):
         ],
     )
 
-    def table(scenario):
+    def table(scenario: str) -> str:
         rows = [
-            [scale]
-            + [
-                f"{one(results, scenario, f'{scale}, {p}').mean_alpha:.2f} "
-                f"({one(results, scenario, f'{scale}, {p}').share_ge_0_7:.0%})"
-                for p in [*PROFILES, "pooled"]
+            [
+                scale,
+                *(
+                    f"{one(results, scenario, f'{scale}, {p}').mean_alpha:.2f} "
+                    f"({one(results, scenario, f'{scale}, {p}').share_ge_0_7:.0%})"
+                    for p in [*PROFILES, "pooled"]
+                ),
             ]
             for scale in [marketing, as_is, recoded]
         ]
@@ -228,25 +238,32 @@ def profile_findings(results):
     sweep = md_table(
         ["scale", "profile", "extreme 0", "extreme 1", "acquiescence 0", "acquiescence 1"],
         [
-            [scale, profile]
-            + [
-                f"{sensitivity(scale, profile, style, strength):.2f}"
-                for style in ["extreme", "acquiescence"]
-                for strength in [0.0, 1.0]
+            [
+                scale,
+                profile,
+                *(
+                    f"{sensitivity(scale, profile, style, strength):.2f}"
+                    for style in ["extreme", "acquiescence"]
+                    for strength in [0.0, 1.0]
+                ),
             ]
             for scale in [marketing, as_is, recoded]
             for profile in PROFILES
         ],
     )
-    gap = lambda scenario, scale: at(scenario, scale, "lima") - at(scenario, scale, "california")
+
+    def gap(scenario: str, scale: str) -> float:
+        return at(scenario, scale, "lima") - at(scenario, scale, "california")
 
     gap_marketing = gap("profiles_same_loading", marketing)
     gap_as_is = gap("profiles_same_loading", as_is)
     gap_recoded = gap("profiles_same_loading", recoded)
-    split_gap = lambda variant: (
-        at("profiles_style_split", marketing, f"lima, {variant}")
-        - at("profiles_style_split", marketing, f"california, {variant}")
-    )
+
+    def split_gap(variant: str) -> float:
+        return at("profiles_style_split", marketing, f"lima, {variant}") - at(
+            "profiles_style_split", marketing, f"california, {variant}"
+        )
+
     gap_style_only = split_gap("style only")
     gap_cutpoints_only = split_gap("cutpoints only")
 
@@ -258,10 +275,12 @@ def profile_findings(results):
     lima_high, california_high = answered["lima"][3:].sum(), answered["california"][3:].sum()
     lima_nunca, california_nunca = answered["lima"][0], answered["california"][0]
 
-    acquiescence = lambda scale: (
-        sensitivity(scale, "lima", "acquiescence", 0.0),
-        sensitivity(scale, "lima", "acquiescence", 1.0),
-    )
+    def acquiescence(scale: str) -> tuple[float, float]:
+        return (
+            sensitivity(scale, "lima", "acquiescence", 0.0),
+            sensitivity(scale, "lima", "acquiescence", 1.0),
+        )
+
     marketing_off, marketing_on = acquiescence(marketing)
     as_is_off, as_is_on = acquiescence(as_is)
     recoded_off, recoded_on = acquiescence(recoded)
@@ -377,15 +396,16 @@ modelling tools beyond its dependencies.
 """
 
 
-def small_group_findings(results):
+def small_group_findings(results: pd.DataFrame) -> str:
     d = results[results.scenario == "small_groups"]
     sizes = sorted(d.n.unique())
     smallest, small, largest = sizes[0], WORKBOOK_N, sizes[-1]
     ci_reps = int(d.ci_reps.iloc[0])
     replicates = int(d.reps.iloc[0])
 
-    def table(scale):
-        rows = []
+    def table(scale: str) -> str:
+        rows: list[list[Any]] = []
+        r: Any
         for r in d[d.scale == scale].itertuples():
             below = r.true_alpha < THRESHOLD
             rows.append(
@@ -417,23 +437,33 @@ def small_group_findings(results):
         return md_table(headers, rows)
 
     at = d[d.n == small]
-    wrong_pass = at.loc[at.false_pass.idxmax()]
-    wrong_fail = at.loc[at.false_fail.idxmax()]
-    same = lambda n, row: d[(d.n == n) & (d.scale == row.scale) & (d.group == row.group)].iloc[0]
+    wrong_pass = at.iloc[int(at.false_pass.argmax())]
+    wrong_fail = at.iloc[int(at.false_fail.argmax())]
+
+    def same(n: int, row: Any) -> Any:
+        return d[(d.n == n) & (d.scale == row.scale) & (d.group == row.group)].iloc[0]
+
     wrong_pass_large, wrong_fail_large = (
         same(largest, wrong_pass).false_pass,
         same(largest, wrong_fail).false_fail,
     )
     gap = (at.true_alpha - at.mean_alpha).max()
     under = int((at.mean_alpha < at.true_alpha).sum())
-    band_width = lambda n: (d[d.n == n].p97_5 - d[d.n == n].p2_5).median()
-    interval_width = lambda n: d[d.n == n].median_ci_width.median()
+
+    def band_width(n: int) -> float:
+        return float((d[d.n == n].p97_5 - d[d.n == n].p2_5).median())
+
+    def interval_width(n: int) -> float:
+        return float(d[d.n == n].median_ci_width.median())
 
     coverage = d.groupby("n").ci_coverage.mean()
     intervals = ci_reps * d.groupby("n").size().iloc[0]
     error = 1.96 * np.sqrt(0.95 * 0.05 / intervals)
     below = [n for n in sizes if coverage[n] < 0.95 - error]
-    names = lambda ns: " and ".join(f"n={n}" for n in ns)
+
+    def names(ns: Sequence[int]) -> str:
+        return " and ".join(f"n={n}" for n in ns)
+
     tiny = sizes[:2]
     if any(n in below for n in tiny):
         verdict = (
@@ -501,8 +531,10 @@ population alpha is {covers}. {verdict}
 """
 
 
-def findings_text(results, reps):
-    sat = lambda s: one(results, "satisfaccion", s)
+def findings_text(results: pd.DataFrame, reps: int) -> str:
+    def sat(s: str) -> Any:
+        return one(results, "satisfaccion", s)
+
     pooled = sat("pooled, 13 items as is")
     recoded_apatico = sat("pooled, apatico reverse-scored")
     recoded_both = sat("pooled, apatico and problematico reverse-scored")
@@ -515,12 +547,16 @@ def findings_text(results, reps):
     multi = one(results, "multidimensional", "pooled 15 items, factor correlation=0.4")
     single = one(results, "multidimensional", "one dimension alone, 3 items")
 
-    age = lambda s: one(results, "age_groups", s)
+    def age(s: str) -> Any:
+        return one(results, "age_groups", s)
+
     mixed_pooled = age("different loadings: pooled")
     mixed_worst = age("different loadings: 50+")
     mixed_best = age("different loadings: 18-29")
 
-    bad = lambda s: one(results, "bad_items", s)
+    def bad(s: str) -> Any:
+        return one(results, "bad_items", s)
+
     clean = bad("clean")
     wrong = bad("one reversed item, not recoded")
     noise = bad("one noise item (loading 0)")
@@ -529,8 +565,8 @@ def findings_text(results, reps):
 
     boot = results[results.scenario == "bootstrap_interval"]
 
-    def shape_alpha(shape, loading):
-        return one(results, "response_shape", f"{shape}, loading={loading}").mean_alpha
+    def shape_alpha(shape: str, loading: float) -> float:
+        return float(one(results, "response_shape", f"{shape}, loading={loading}").mean_alpha)
 
     skew_cost = [
         shape_alpha("symmetric", loading)
@@ -701,8 +737,8 @@ slightly less than 95% in small samples.
 {small_group_findings(results)}"""
 
 
-def write_findings(results, reps, path):
-    """Wrap prose at 80 columns, as prettier does, so reformatting leaves the file alone."""
+def write_findings(results: pd.DataFrame, reps: int, path: str | Path) -> None:
+    """Wrap prose at 80 columns, as oxfmt does, so reformatting leaves the file alone."""
     blocks = findings_text(results, reps).strip().split("\n\n")
     wrapped = [
         block

@@ -4,14 +4,16 @@ Every scenario function returns a list of result rows (dicts). One row is one
 setting replicated `reps` times, each replicate a fresh simulated sample.
 """
 
+from collections.abc import Callable, Sequence
 from dataclasses import replace
-from typing import NamedTuple
+from functools import partial
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
 from .alpha import alpha_if_dropped, bootstrap_ci, cronbach_alpha, standardized_alpha
-from .generate import RESPONSE_SHAPES, cutpoints_from_probs, reverse_score, simulate
+from .generate import RESPONSE_SHAPES, Array, cutpoints_from_probs, reverse_score, simulate
 from .profiles import PROFILES, Profile, simulate_profile
 from .survey import (
     AGE_GROUPS,
@@ -36,9 +38,23 @@ AGE_LOADINGS = [0.8, 0.7, 0.5, 0.3]
 SAME_LOADING = 0.7  # the loading both profiles share in the same-loading runs
 
 
+Rng = np.random.Generator
+Draw = Callable[[Rng], Array]
+Row = dict[str, Any]
+
+
 def cell(
-    scenario, setting, draw, reps, rng, planted=None, boot=0, boot_reps=None, truth=None, **cols
-):
+    scenario: str,
+    setting: str,
+    draw: Draw,
+    reps: int,
+    rng: Rng,
+    planted: int | None = None,
+    boot: int = 0,
+    boot_reps: int | None = None,
+    truth: float | None = None,
+    **cols: Any,
+) -> Row:
     """Replicate one setting and summarize raw alpha over the replicates.
 
     draw(rng) returns one (n, k) response matrix.
@@ -52,10 +68,10 @@ def cell(
     """
     boot_reps = reps if boot_reps is None else boot_reps
     truth = None if truth is None else float(truth)
-    records = []
+    records: list[Row] = []
     for i in range(reps):
         x = draw(rng)
-        record = {"raw": cronbach_alpha(x), "std": standardized_alpha(x)}
+        record: Row = {"raw": cronbach_alpha(x), "std": standardized_alpha(x)}
         if planted is not None:
             dropped = alpha_if_dropped(x)
             record["flagged"] = dropped.argmax() == planted
@@ -95,17 +111,24 @@ def cell(
     return row
 
 
-def equal_loadings(k, loading=DEFAULT_LOADING):
+def equal_loadings(k: int, loading: float = DEFAULT_LOADING) -> Array:
     return np.full(k, loading)
 
 
-def loading_items(reps, rng):
+def simulated(n: int, loadings: Array, **kwargs: Any) -> Draw:
+    def draw(r: Rng) -> Array:
+        return simulate(n, loadings, r, **kwargs)
+
+    return draw
+
+
+def loading_items(reps: int, rng: Rng) -> list[Row]:
     """Loading from 0.2 to 0.9 for scales of 3, 5 and 15 items."""
     return [
         cell(
             "loading_items",
             f"k={k}, loading={loading:.2f}",
-            lambda r, k=k, loading=loading: simulate(DEFAULT_N, equal_loadings(k, loading), r),
+            simulated(DEFAULT_N, equal_loadings(k, loading)),
             reps,
             rng,
             k=k,
@@ -117,12 +140,12 @@ def loading_items(reps, rng):
     ]
 
 
-def sample_size(reps, rng):
+def sample_size(reps: int, rng: Rng) -> list[Row]:
     return [
         cell(
             "sample_size",
             f"n={n}, loading={loading}",
-            lambda r, n=n, loading=loading: simulate(n, equal_loadings(DEFAULT_K, loading), r),
+            simulated(n, equal_loadings(DEFAULT_K, loading)),
             reps,
             rng,
             k=DEFAULT_K,
@@ -134,16 +157,15 @@ def sample_size(reps, rng):
     ]
 
 
-def response_shape(reps, rng):
+def response_shape(reps: int, rng: Rng) -> list[Row]:
     """Same latent structure, answers piled toward one end of the scale."""
     return [
         cell(
             "response_shape",
             f"{shape}, loading={loading}",
-            lambda r, probs=probs, loading=loading: simulate(
+            simulated(
                 DEFAULT_N,
                 equal_loadings(DEFAULT_K, loading),
-                r,
                 cutpoints=cutpoints_from_probs(probs),
             ),
             reps,
@@ -157,21 +179,23 @@ def response_shape(reps, rng):
     ]
 
 
-def satisfaccion(reps, rng):
+def satisfaccion(reps: int, rng: Rng) -> list[Row]:
     """13 items, 3 dimensions: pooled as one scale, per dimension, and recoded."""
     factor = factor_index(SATISFACCION)
     loadings = equal_loadings(len(factor), 0.7)
 
-    def draw(r, columns=slice(None), reversed_dims=()):
+    def draw(
+        r: Rng, columns: slice | Array = slice(None), reversed_dims: Sequence[str] = ()
+    ) -> Array:
         x = simulate(DEFAULT_N, loadings, r, factor=factor, factor_corr=SATISFACCION_CORR)
         flip = np.isin(factor, [list(SATISFACCION).index(d) for d in reversed_dims])
         return reverse_score(x, flip)[:, columns]
 
     pooled = len(factor)
-    settings = {"pooled, 13 items as is": (draw, pooled)}
+    settings: dict[str, tuple[Draw, int]] = {"pooled, 13 items as is": (draw, pooled)}
     for name, size in SATISFACCION.items():
         columns = dimension_columns(SATISFACCION, name)
-        settings[f"{name} alone, {size} items"] = (lambda r, c=columns: draw(r, c), size)
+        settings[f"{name} alone, {size} items"] = (partial(draw, columns=columns), size)
     settings["pooled, apatico reverse-scored"] = (
         lambda r: draw(r, reversed_dims=["apatico"]),
         pooled,
@@ -186,13 +210,13 @@ def satisfaccion(reps, rng):
     ]
 
 
-def multidimensional(reps, rng):
+def multidimensional(reps: int, rng: Rng) -> list[Row]:
     """Five correlated dimensions of 3 items, scored as one 15-item scale."""
     factor = factor_index(MARKETING_SENSORIAL)
     loadings = equal_loadings(len(factor), 0.7)
     vista = dimension_columns(MARKETING_SENSORIAL, "vista")
 
-    def draw(r, factor_r, columns=slice(None)):
+    def draw(r: Rng, factor_r: float, columns: slice | Array = slice(None)) -> Array:
         x = simulate(DEFAULT_N, loadings, r, factor=factor, factor_corr=marketing_corr(factor_r))
         return x[:, columns]
 
@@ -212,7 +236,7 @@ def multidimensional(reps, rng):
         cell(
             "multidimensional",
             f"pooled 15 items, factor correlation={factor_r}",
-            lambda r, factor_r=factor_r: draw(r, factor_r),
+            partial(draw, factor_r=factor_r),
             reps,
             rng,
             k=15,
@@ -224,7 +248,12 @@ def multidimensional(reps, rng):
     return rows
 
 
-def age_groups(reps, rng):
+def one_group(draw: Draw, mine: Array, r: Rng) -> Array:
+    """The respondents of one group out of a pooled sample."""
+    return draw(r)[mine]
+
+
+def age_groups(reps: int, rng: Rng) -> list[Row]:
     """Four age groups of 100: alpha inside each group versus pooled."""
     per_group = AGE_GROUP_SIZE
     group = np.repeat(np.arange(len(AGE_GROUPS)), per_group)
@@ -234,16 +263,16 @@ def age_groups(reps, rng):
         "different loadings": (AGE_LOADINGS, None),
         "different loadings, theta shifts": (AGE_LOADINGS, [0.6, 0.2, -0.2, -0.6]),
     }
-    rows = []
+    rows: list[Row] = []
     for variant, (group_loadings, shift) in variants.items():
         loadings = np.repeat(np.array(group_loadings)[:, None], DEFAULT_K, axis=1)
 
-        def draw(r, loadings=loadings, shift=shift):
+        def draw(r: Rng, loadings: Array = loadings, shift: list[float] | None = shift) -> Array:
             return simulate(len(group), loadings, r, group=group, theta_shift=shift)
 
-        parts = {"pooled": draw}
+        parts: dict[str, Draw] = {"pooled": draw}
         for g, label in enumerate(AGE_GROUPS):
-            parts[label] = lambda r, g=g, draw=draw: draw(r)[group == g]
+            parts[label] = partial(one_group, draw, group == g)
         for part, d in parts.items():
             rows.append(
                 cell(
@@ -259,7 +288,7 @@ def age_groups(reps, rng):
     return rows
 
 
-def bad_items(reps, rng):
+def bad_items(reps: int, rng: Rng) -> list[Row]:
     """One scale of 8 good items, spoiled in turn. Alpha-if-dropped looks for the culprit."""
     k, n, loading = 8, DEFAULT_N, 0.6
     good = equal_loadings(k, loading)
@@ -267,7 +296,7 @@ def bad_items(reps, rng):
     noise_item[0] = 0.0
     reverse_first = np.arange(k) == 0
 
-    cases = {
+    cases: dict[str, tuple[Draw, int | None]] = {
         "clean": (lambda r: simulate(n, good, r), None),
         "20% random responders": (lambda r: simulate(n, good, r, random_share=0.2), None),
         "20% straight-liners": (lambda r: simulate(n, good, r, straightline_share=0.2), None),
@@ -287,17 +316,17 @@ def bad_items(reps, rng):
     ]
 
 
-def bootstrap_interval(reps, rng):
+def bootstrap_interval(reps: int, rng: Rng) -> list[Row]:
     """How wide the 95% bootstrap interval is, and whether it covers the true alpha."""
     reps = max(reps // 5, 1)
     loading = 0.7
     loadings = equal_loadings(DEFAULT_K, loading)
-    truth = cronbach_alpha(simulate(200_000, loadings, rng))
+    truth = float(cronbach_alpha(simulate(200_000, loadings, rng)))
     return [
         cell(
             "bootstrap_interval",
             f"n={n}",
-            lambda r, n=n: simulate(n, loadings, r),
+            simulated(n, loadings),
             reps,
             rng,
             boot=500,
@@ -314,13 +343,13 @@ STYLE_STRENGTHS = [0.0, 0.25, 0.5, 0.75, 1.0]
 
 
 class Scale(NamedTuple):
-    factor: np.ndarray  # factor of each item
-    corr: np.ndarray  # correlation between the factors' traits
-    reverse: np.ndarray | None  # items answered on the flipped scale
+    factor: Array  # factor of each item
+    corr: Array  # correlation between the factors' traits
+    reverse: Array | None  # items answered on the flipped scale
     recoded: bool  # whether the analyst scores the reverse-keyed items back
 
 
-def profile_scales():
+def profile_scales() -> dict[str, Scale]:
     """Marketing Sensorial, and Satisfaccion with the same answers scored as is and recoded."""
     satisfaccion = factor_index(SATISFACCION)
     # Apatico and problematico (dimensions 1 and 2) are worded against satisfaccion.
@@ -340,7 +369,7 @@ def profile_scales():
     }
 
 
-def profile_draw(profiles, scale, n=DEFAULT_N):
+def profile_draw(profiles: Sequence[Profile], scale: Scale, n: int = DEFAULT_N) -> Draw:
     """draw(rng): n respondents from each profile, stacked into one sample.
 
     The reverse-keyed items are generated as such, so acquiescence pulls them as the
@@ -349,7 +378,7 @@ def profile_draw(profiles, scale, n=DEFAULT_N):
     reverse-keyed item are the profile's shares in reverse order.
     """
 
-    def draw(r):
+    def draw(r: Rng) -> Array:
         samples = [
             simulate_profile(
                 p,
@@ -363,12 +392,14 @@ def profile_draw(profiles, scale, n=DEFAULT_N):
             for p in profiles
         ]
         x = np.vstack(samples)
-        return reverse_score(x, scale.reverse) if scale.recoded else x
+        if scale.recoded and scale.reverse is not None:
+            return reverse_score(x, scale.reverse)
+        return x
 
     return draw
 
 
-def profile_rows(scenario, groups, reps, rng):
+def profile_rows(scenario: str, groups: dict[str, list[Profile]], reps: int, rng: Rng) -> list[Row]:
     """One row per scale and group of profiles; groups maps a label to a list of profiles."""
     return [
         cell(
@@ -387,13 +418,13 @@ def profile_rows(scenario, groups, reps, rng):
     ]
 
 
-def profiles_assumed(reps, rng):
+def profiles_assumed(reps: int, rng: Rng) -> list[Row]:
     """Each profile as assumed (cutpoints, style and loading differ), then both pooled."""
     both = list(PROFILES.values())
     return profile_rows("profiles", {p.name: [p] for p in both} | {"pooled": both}, reps, rng)
 
 
-def profiles_same_loading(reps, rng):
+def profiles_same_loading(reps: int, rng: Rng) -> list[Row]:
     """Both profiles share one nominal loading: only cutpoints and response style differ."""
     both = [replace(p, loading=SAME_LOADING) for p in PROFILES.values()]
     return profile_rows(
@@ -401,11 +432,11 @@ def profiles_same_loading(reps, rng):
     )
 
 
-def profiles_style_split(reps, rng):
+def profiles_style_split(reps: int, rng: Rng) -> list[Row]:
     """Marketing Sensorial at the shared loading, with only the styles or only the cutpoints."""
     scale = profile_scales()["marketing sensorial"]
-    no_style = {"extreme": 0.0, "acquiescence": 0.0}
-    shared_cutpoints = {"probs": tuple(RESPONSE_SHAPES["symmetric"])}
+    no_style: dict[str, Any] = {"extreme": 0.0, "acquiescence": 0.0}
+    shared_cutpoints: dict[str, Any] = {"probs": tuple(RESPONSE_SHAPES["symmetric"])}
     variants = {"style only": shared_cutpoints, "cutpoints only": no_style}
     return [
         cell(
@@ -424,15 +455,14 @@ def profiles_style_split(reps, rng):
     ]
 
 
-def response_style(reps, rng):
+def response_style(reps: int, rng: Rng) -> list[Row]:
     """Alpha as one style trait grows from 0 to 1 while the other stays off."""
+    off: dict[str, Any] = {"extreme": 0.0, "acquiescence": 0.0}
     return [
         cell(
             "response_style",
             f"{name}, {p.name}, {style}={strength}",
-            profile_draw(
-                [replace(p, **({"extreme": 0.0, "acquiescence": 0.0} | {style: strength}))], scale
-            ),
+            profile_draw([replace(p, **(off | {style: strength}))], scale),
             reps,
             rng,
             k=len(scale.factor),
@@ -457,7 +487,7 @@ POPULATION_N = 200_000
 WORKBOOK_N = 50
 
 
-def small_group_profiles():
+def small_group_profiles() -> dict[str, Profile]:
     """Lima and california as assumed, then each age group: symmetric answers, no styles.
 
     An age group takes the loading of the age-group scenario for every item.
@@ -465,23 +495,23 @@ def small_group_profiles():
     symmetric = tuple(RESPONSE_SHAPES["symmetric"])
     ages = {
         label: Profile(label, symmetric, extreme=0.0, acquiescence=0.0, loading=loading)
-        for label, loading in zip(AGE_GROUPS, AGE_LOADINGS)
+        for label, loading in zip(AGE_GROUPS, AGE_LOADINGS, strict=True)
     }
     return dict(PROFILES) | ages
 
 
-def small_groups(reps, rng):
+def small_groups(reps: int, rng: Rng) -> list[Row]:
     """Small groups at 30, 40, 50 and 200 respondents against the population alpha.
 
     The population alpha is that of the same setting at 200000 respondents. The
     bootstrap runs on a tenth of the replicates to keep the run short.
     """
     scales = profile_scales()
-    rows = []
+    rows: list[Row] = []
     for name in SMALL_SCALES:
         scale = scales[name]
         for label, profile in small_group_profiles().items():
-            truth = cronbach_alpha(profile_draw([profile], scale, POPULATION_N)(rng))
+            truth = float(cronbach_alpha(profile_draw([profile], scale, POPULATION_N)(rng)))
             rows += [
                 cell(
                     "small_groups",
@@ -502,7 +532,7 @@ def small_groups(reps, rng):
     return rows
 
 
-SCENARIOS = [
+SCENARIOS: list[Callable[[int, Rng], list[Row]]] = [
     loading_items,
     sample_size,
     response_shape,
@@ -519,6 +549,6 @@ SCENARIOS = [
 ]
 
 
-def run_all(reps, seed):
+def run_all(reps: int, seed: int) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     return pd.DataFrame([row for scenario in SCENARIOS for row in scenario(reps, rng)])

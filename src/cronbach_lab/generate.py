@@ -14,11 +14,15 @@ only nominal. `profiles.item_trait_correlation` measures the correlation.
 """
 
 from statistics import NormalDist
+from typing import Any
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
+
+Array = NDArray[Any]
 
 
-def cutpoints_from_probs(probs):
+def cutpoints_from_probs(probs: ArrayLike) -> Array:
     """Thresholds on the standard-normal scale that give these category shares."""
     cumulative = np.cumsum(probs)[:-1]
     return np.array([NormalDist().inv_cdf(p) for p in cumulative])
@@ -38,28 +42,28 @@ SYMMETRIC = cutpoints_from_probs(RESPONSE_SHAPES["symmetric"])
 ACQUIESCENCE_ON_REVERSE = 0.5
 
 
-def equicorrelated(n_factors, r):
+def equicorrelated(n_factors: int, r: float) -> Array:
     """Correlation matrix with r between every pair of factors."""
     return np.full((n_factors, n_factors), r) + (1 - r) * np.eye(n_factors)
 
 
-def latent_items(n, loadings, rng, **kwargs):
+def latent_items(n: int, loadings: ArrayLike, rng: np.random.Generator, **kwargs: Any) -> Array:
     """Continuous item scores, shape (n, k). The arguments are those of `latent_draw`."""
     return latent_draw(n, loadings, rng, **kwargs)[1]
 
 
 def latent_draw(
-    n,
-    loadings,
-    rng,
-    factor=None,
-    factor_corr=None,
-    group=None,
-    theta_shift=None,
-    reverse=None,
-    acquiescence=0.0,
-    extreme=0.0,
-):
+    n: int,
+    loadings: ArrayLike,
+    rng: np.random.Generator,
+    factor: ArrayLike | None = None,
+    factor_corr: ArrayLike | None = None,
+    group: Array | None = None,
+    theta_shift: ArrayLike | None = None,
+    reverse: ArrayLike | None = None,
+    acquiescence: float = 0.0,
+    extreme: float = 0.0,
+) -> tuple[Array, Array]:
     """The traits theta, shape (n, factors), and the continuous item scores, shape (n, k).
 
     loadings: (k,), or (groups, k) to give each group its own loadings.
@@ -75,19 +79,19 @@ def latent_draw(
     extreme: sd of the log of a per-respondent gain on the score. A large gain
         pushes the score past the outer cutpoints, so the respondent answers 1 or 5.
     """
-    loadings = np.asarray(loadings, dtype=float)
-    k = loadings.shape[-1]
-    factor = np.zeros(k, dtype=int) if factor is None else np.asarray(factor)
-    n_factors = factor.max() + 1
+    loadings_arr = np.asarray(loadings, dtype=float)
+    k = loadings_arr.shape[-1]
+    factor_arr = np.zeros(k, dtype=int) if factor is None else np.asarray(factor)
+    n_factors = factor_arr.max() + 1
     corr = np.eye(n_factors) if factor_corr is None else np.asarray(factor_corr)
 
     theta = rng.multivariate_normal(np.zeros(n_factors), corr, size=n)
     if theta_shift is not None:
         theta = theta + np.asarray(theta_shift)[group][:, None]
-    loading = loadings[group] if loadings.ndim == 2 else loadings
+    loading = loadings_arr[group] if loadings_arr.ndim == 2 else loadings_arr
 
     noise = rng.standard_normal((n, k)) * np.sqrt(1 - loading**2)
-    x = loading * theta[:, factor] + noise
+    x = loading * theta[:, factor_arr] + noise
 
     # Style traits draw from the RNG only when switched on, so enabling none
     # leaves the random stream untouched.
@@ -106,21 +110,21 @@ def latent_draw(
     return theta, x
 
 
-def discretize(x, cutpoints=SYMMETRIC):
+def discretize(x: ArrayLike, cutpoints: Array = SYMMETRIC) -> Array:
     """Map continuous scores to 1..len(cutpoints)+1."""
     return np.searchsorted(cutpoints, x) + 1
 
 
 def simulate(
-    n,
-    loadings,
-    rng,
-    cutpoints=SYMMETRIC,
-    reverse=None,
-    random_share=0.0,
-    straightline_share=0.0,
-    **latent_kwargs,
-):
+    n: int,
+    loadings: ArrayLike,
+    rng: np.random.Generator,
+    cutpoints: Array = SYMMETRIC,
+    reverse: ArrayLike | None = None,
+    random_share: float = 0.0,
+    straightline_share: float = 0.0,
+    **latent_kwargs: Any,
+) -> Array:
     """Likert responses, shape (n, k), integers 1..5.
 
     reverse: (k,) bool, items answered on the flipped scale (6 - x). The data
@@ -141,6 +145,7 @@ def simulate(
     return x
 
 
-def reverse_score(x, reverse):
+def reverse_score(x: ArrayLike, reverse: ArrayLike) -> Array:
     """Undo reverse keying so every item points the same way."""
-    return np.where(reverse, 6 - x, x)
+    scores = np.asarray(x)
+    return np.where(reverse, 6 - scores, scores)

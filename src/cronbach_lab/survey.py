@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .generate import equicorrelated
+from .generate import Array, equicorrelated
 
 AGE_GROUPS = ["18-29", "30-39", "40-49", "50+"]
 
@@ -20,19 +20,19 @@ SATISFACCION_CORR = np.array(
 )
 
 
-def factor_index(dimensions):
+def factor_index(dimensions: dict[str, int]) -> Array:
     """Factor of each item, one factor per dimension."""
     return np.repeat(np.arange(len(dimensions)), list(dimensions.values()))
 
 
-def item_names(dimensions):
+def item_names(dimensions: dict[str, int]) -> list[str]:
     return [f"{d}_{i + 1}" for d, size in dimensions.items() for i in range(size)]
 
 
-def dimension_columns(dimensions, name):
+def dimension_columns(dimensions: dict[str, int], name: str) -> Array:
     """Column positions of one dimension's items."""
     return np.flatnonzero(factor_index(dimensions) == list(dimensions).index(name))
 
 
-def marketing_corr(r):
+def marketing_corr(r: float) -> Array:
     return equicorrelated(len(MARKETING_SENSORIAL), r)

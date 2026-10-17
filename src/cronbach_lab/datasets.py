@@ -1,12 +1,13 @@
 """Datasets for the R cross-check: item CSVs plus the Python alpha of each."""
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from .alpha import cronbach_alpha, standardized_alpha
-from .generate import RESPONSE_SHAPES, cutpoints_from_probs, simulate
+from .generate import RESPONSE_SHAPES, Array, cutpoints_from_probs, simulate
 from .profiles import PROFILES, simulate_profile
 from .scenarios import (
     AGE_GROUP_SIZE,
@@ -29,12 +30,15 @@ from .survey import (
     marketing_corr,
 )
 
+Datasets = dict[str, tuple[Array, list[str]]]
+AgeDataset = tuple[Array, Array]
 
-def generic(k):
+
+def generic(k: int) -> list[str]:
     return [f"q{i + 1}" for i in range(k)]
 
 
-def build_datasets(rng):
+def build_datasets(rng: np.random.Generator) -> Datasets:
     """Name -> (responses, column names), differing in size, skew, structure and bad responders."""
     satisfaccion = factor_index(SATISFACCION)
     marketing = factor_index(MARKETING_SENSORIAL)
@@ -85,14 +89,14 @@ def build_datasets(rng):
     return datasets
 
 
-def build_age_dataset(rng):
+def build_age_dataset(rng: np.random.Generator) -> AgeDataset:
     """Respondents with an age group, the loading falling from 0.8 (18-29) to 0.3 (50+)."""
     group = np.repeat(np.arange(len(AGE_GROUPS)), AGE_GROUP_SIZE)
     loadings = np.repeat(np.array(AGE_LOADINGS)[:, None], DEFAULT_K, axis=1)
     return simulate(len(group), loadings, rng, group=group), np.array(AGE_GROUPS)[group]
 
 
-def build_small_group_datasets(rng):
+def build_small_group_datasets(rng: np.random.Generator) -> Datasets:
     """One sample of WORKBOOK_N respondents per small group and scale."""
     scales = profile_scales()
     items = {
@@ -108,7 +112,7 @@ def build_small_group_datasets(rng):
     }
 
 
-def draw_datasets(seed=1):
+def draw_datasets(seed: int = 1) -> tuple[Datasets, AgeDataset]:
     """The R cross-check datasets and the age-group dataset, from one seeded RNG.
 
     The CSVs and the workbooks are written from the same draw, so each workbook
@@ -121,10 +125,10 @@ def draw_datasets(seed=1):
     return datasets | build_small_group_datasets(rng), age_dataset
 
 
-def write_datasets(out_dir, datasets):
+def write_datasets(out_dir: str | Path, datasets: Datasets) -> None:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    reference = []
+    reference: list[dict[str, Any]] = []
     for name, (x, columns) in datasets.items():
         pd.DataFrame(x, columns=columns).to_csv(out_dir / f"{name}.csv", index=False)
         reference.append(

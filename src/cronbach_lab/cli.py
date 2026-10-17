@@ -1,6 +1,7 @@
 """Command line: run the scenarios, or write the R cross-check datasets."""
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 
 from .datasets import draw_datasets, write_datasets
@@ -9,7 +10,7 @@ from .report import write_findings, write_plots
 from .scenarios import run_all
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cronbach-lab", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 

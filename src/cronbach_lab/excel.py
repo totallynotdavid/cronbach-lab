@@ -1,28 +1,36 @@
 """One Excel workbook per group of respondents: their answers and their reliability."""
 
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from .alpha import alpha_if_dropped, cronbach_alpha, standardized_alpha
-from .datasets import generic
+from .datasets import AgeDataset, Datasets, generic
+from .generate import Array
 from .survey import AGE_GROUPS
 
 
-def write_workbook(out_dir, name, x, columns, age_group=None):
+def write_workbook(
+    out_dir: str | Path,
+    name: str,
+    x: Array,
+    columns: list[str],
+    age_group: Array | None = None,
+) -> Path:
     """Write `<name>_alpha<raw alpha, 3 decimals>.xlsx` and return its path."""
     alpha = cronbach_alpha(x)
     responses = pd.DataFrame(x, columns=columns)
     if age_group is not None:
         responses["age_group"] = age_group
 
-    metrics = {
+    metrics: dict[str, Any] = {
         "raw alpha": alpha,
         "standardized alpha": standardized_alpha(x),
         "items": x.shape[1],
         "respondents": x.shape[0],
     }
-    for column, value in zip(columns, alpha_if_dropped(x)):
+    for column, value in zip(columns, alpha_if_dropped(x), strict=True):
         metrics[f"alpha if {column} dropped"] = value
     reliability = pd.DataFrame({"metric": list(metrics), "value": list(metrics.values())})
 
@@ -37,7 +45,7 @@ def write_workbook(out_dir, name, x, columns, age_group=None):
     return path
 
 
-def write_workbooks(out_dir, datasets, age_dataset):
+def write_workbooks(out_dir: str | Path, datasets: Datasets, age_dataset: AgeDataset) -> list[Path]:
     """Every dataset, then the age-group dataset pooled and per group. Returns the paths.
 
     datasets, age_dataset: as returned by `draw_datasets`.
