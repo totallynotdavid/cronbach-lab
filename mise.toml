@@ -1,22 +1,48 @@
 [tools]
 python = "3.14.8"
 uv = "0.12.21"
+gitleaks = "8.30.1"
+oxfmt = "0.73.0"
 
 [env]
 UV_PYTHON = "3.14.8"
+
+[tasks.install]
+description = "Install the locked Python dependencies"
+run = "uv sync --locked"
+
+[tasks.lint]
+description = "Check Python, Markdown, YAML, JSON and secrets without writing"
+depends = ["lint:*"]
+
+[tasks."lint:py"]
+description = "Check Python with ruff"
+run = ["uv run ruff check --no-fix", "uv run ruff format --check"]
+
+[tasks."lint:fmt"]
+description = "Check Markdown, YAML and JSON formatting with oxfmt"
+run = "oxfmt --check ."
+
+[tasks."lint:secrets"]
+description = "Scan the tree for secrets with gitleaks"
+run = "gitleaks dir --no-banner --redact ."
+
+[tasks.fix]
+description = "Apply safe ruff fixes and format Python, Markdown, YAML and JSON"
+run = ["oxfmt .", "uv run ruff format", "uv run ruff check --fix"]
+
+[tasks.typecheck]
+description = "Type-check with mypy strict"
+run = "uv run mypy"
 
 [tasks.test]
 description = "Run pytest, including the R cross-check when Rscript and psych are present"
 run = "uv run pytest"
 
-[tasks.lint]
-description = "Lint with ruff"
-run = "uv run ruff check"
-
-[tasks.format]
-description = "Format with ruff"
-run = "uv run ruff format --line-length 100"
+[tasks.build]
+description = "Build the wheel and sdist into dist/"
+run = "uv build"
 
 [tasks.check]
-description = "Lint, then test"
-run = [{ task = "lint" }, { task = "test" }]
+description = "Lint, type-check, test and build without writing tracked files"
+depends = ["lint", "typecheck", "test", "build"]
