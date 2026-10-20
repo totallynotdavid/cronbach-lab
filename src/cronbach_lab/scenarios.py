@@ -465,7 +465,7 @@ def small_group_profiles():
     symmetric = tuple(RESPONSE_SHAPES["symmetric"])
     ages = {
         label: Profile(label, symmetric, extreme=0.0, acquiescence=0.0, loading=loading)
-        for label, loading in zip(AGE_GROUPS, AGE_LOADINGS)
+        for label, loading in zip(AGE_GROUPS, AGE_LOADINGS, strict=True)
     }
     return dict(PROFILES) | ages
 

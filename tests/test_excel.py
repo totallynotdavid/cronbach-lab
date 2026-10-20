@@ -75,7 +75,7 @@ def test_age_workbooks_hold_their_group_and_the_oldest_group_is_least_reliable(w
     assert list(pooled_age.unique()) == ["18-29", "30-39", "40-49", "50+"]
 
     alphas = {}
-    for part, label in zip(AGE_FILES[1:], ["18-29", "30-39", "40-49", "50+"]):
+    for part, label in zip(AGE_FILES[1:], ["18-29", "30-39", "40-49", "50+"], strict=True):
         path = next(workbooks.glob(f"age_groups_{part}_alpha*.xlsx"))
         responses = pd.read_excel(path, sheet_name="responses")
         assert set(responses["age_group"]) == {label}

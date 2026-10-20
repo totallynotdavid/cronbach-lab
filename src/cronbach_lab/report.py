@@ -56,7 +56,7 @@ def plot_response_style(results, path):
     d = results[results.scenario == "response_style"]
     scales = d.scale.unique()
     fig, axes = plt.subplots(1, len(scales), figsize=(4.5 * len(scales), 4), sharey=True)
-    for ax, scale in zip(axes, scales):
+    for ax, scale in zip(axes, scales, strict=True):
         for (profile, style), g in d[d.scale == scale].groupby(["profile", "style"]):
             ax.plot(
                 g.strength,
@@ -80,7 +80,7 @@ def plot_small_groups(results, path):
     scales = d.scale.unique()
     sizes = sorted(d.n.unique())
     fig, axes = plt.subplots(1, len(scales), figsize=(6 * len(scales), 5.5), sharey=True)
-    for ax, scale in zip(axes, scales):
+    for ax, scale in zip(axes, scales, strict=True):
         g = d[d.scale == scale]
         groups = list(g.group.unique())
         for j, n in enumerate(sizes):
@@ -123,8 +123,12 @@ def write_plots(results, out_dir):
 def md_table(headers, rows):
     """Markdown table with padded columns, laid out as prettier would."""
     rows = [[str(cell) for cell in row] for row in rows]
-    widths = [max(len(c) for c in column) for column in zip(headers, *rows)]
-    line = lambda cells: "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths)) + " |"
+    widths = [max(len(c) for c in column) for column in zip(headers, *rows, strict=True)]
+
+    def line(cells):
+        padded = (c.ljust(w) for c, w in zip(cells, widths, strict=True))
+        return "| " + " | ".join(padded) + " |"
+
     rule = "| " + " | ".join("-" * w for w in widths) + " |"
     return "\n".join([line(headers), rule] + [line(row) for row in rows])
 
@@ -145,7 +149,7 @@ def rows_of(results, scenario, extra=()):
 
 
 def scenario_table(results, scenario, extra=()):
-    headers = ["setting", "mean alpha", "2.5-97.5% band", "runs >= 0.7"] + list(extra)
+    headers = ["setting", "mean alpha", "2.5-97.5% band", "runs >= 0.7", *extra]
     return md_table(headers, rows_of(results, scenario, extra))
 
 
@@ -183,10 +187,12 @@ def loading_grid(results):
 
 
 def profile_findings(results):
-    at = lambda scenario, scale, profile: one(results, scenario, f"{scale}, {profile}").mean_alpha
-    sensitivity = lambda scale, profile, style, strength: (
-        one(results, "response_style", f"{scale}, {profile}, {style}={strength}").mean_alpha
-    )
+    def at(scenario, scale, profile):
+        return one(results, scenario, f"{scale}, {profile}").mean_alpha
+
+    def sensitivity(scale, profile, style, strength):
+        setting = f"{scale}, {profile}, {style}={strength}"
+        return one(results, "response_style", setting).mean_alpha
 
     marketing, as_is, recoded = "marketing sensorial", "satisfaccion as is", "satisfaccion recoded"
     assumptions = md_table(
@@ -238,15 +244,19 @@ def profile_findings(results):
             for profile in PROFILES
         ],
     )
-    gap = lambda scenario, scale: at(scenario, scale, "lima") - at(scenario, scale, "california")
+
+    def gap(scenario, scale):
+        return at(scenario, scale, "lima") - at(scenario, scale, "california")
 
     gap_marketing = gap("profiles_same_loading", marketing)
     gap_as_is = gap("profiles_same_loading", as_is)
     gap_recoded = gap("profiles_same_loading", recoded)
-    split_gap = lambda variant: (
-        at("profiles_style_split", marketing, f"lima, {variant}")
-        - at("profiles_style_split", marketing, f"california, {variant}")
-    )
+
+    def split_gap(variant):
+        return at("profiles_style_split", marketing, f"lima, {variant}") - at(
+            "profiles_style_split", marketing, f"california, {variant}"
+        )
+
     gap_style_only = split_gap("style only")
     gap_cutpoints_only = split_gap("cutpoints only")
 
@@ -258,10 +268,12 @@ def profile_findings(results):
     lima_high, california_high = answered["lima"][3:].sum(), answered["california"][3:].sum()
     lima_nunca, california_nunca = answered["lima"][0], answered["california"][0]
 
-    acquiescence = lambda scale: (
-        sensitivity(scale, "lima", "acquiescence", 0.0),
-        sensitivity(scale, "lima", "acquiescence", 1.0),
-    )
+    def acquiescence(scale):
+        return (
+            sensitivity(scale, "lima", "acquiescence", 0.0),
+            sensitivity(scale, "lima", "acquiescence", 1.0),
+        )
+
     marketing_off, marketing_on = acquiescence(marketing)
     as_is_off, as_is_on = acquiescence(as_is)
     recoded_off, recoded_on = acquiescence(recoded)
@@ -419,21 +431,32 @@ def small_group_findings(results):
     at = d[d.n == small]
     wrong_pass = at.loc[at.false_pass.idxmax()]
     wrong_fail = at.loc[at.false_fail.idxmax()]
-    same = lambda n, row: d[(d.n == n) & (d.scale == row.scale) & (d.group == row.group)].iloc[0]
+
+    def same(n, row):
+        matching = (d.n == n) & (d.scale == row.scale) & (d.group == row.group)
+        return d[matching].iloc[0]
+
     wrong_pass_large, wrong_fail_large = (
         same(largest, wrong_pass).false_pass,
         same(largest, wrong_fail).false_fail,
     )
     gap = (at.true_alpha - at.mean_alpha).max()
     under = int((at.mean_alpha < at.true_alpha).sum())
-    band_width = lambda n: (d[d.n == n].p97_5 - d[d.n == n].p2_5).median()
-    interval_width = lambda n: d[d.n == n].median_ci_width.median()
+
+    def band_width(n):
+        return (d[d.n == n].p97_5 - d[d.n == n].p2_5).median()
+
+    def interval_width(n):
+        return d[d.n == n].median_ci_width.median()
 
     coverage = d.groupby("n").ci_coverage.mean()
     intervals = ci_reps * d.groupby("n").size().iloc[0]
     error = 1.96 * np.sqrt(0.95 * 0.05 / intervals)
     below = [n for n in sizes if coverage[n] < 0.95 - error]
-    names = lambda ns: " and ".join(f"n={n}" for n in ns)
+
+    def names(ns):
+        return " and ".join(f"n={n}" for n in ns)
+
     tiny = sizes[:2]
     if any(n in below for n in tiny):
         verdict = (
@@ -502,7 +525,9 @@ population alpha is {covers}. {verdict}
 
 
 def findings_text(results, reps):
-    sat = lambda s: one(results, "satisfaccion", s)
+    def sat(s):
+        return one(results, "satisfaccion", s)
+
     pooled = sat("pooled, 13 items as is")
     recoded_apatico = sat("pooled, apatico reverse-scored")
     recoded_both = sat("pooled, apatico and problematico reverse-scored")
@@ -515,12 +540,16 @@ def findings_text(results, reps):
     multi = one(results, "multidimensional", "pooled 15 items, factor correlation=0.4")
     single = one(results, "multidimensional", "one dimension alone, 3 items")
 
-    age = lambda s: one(results, "age_groups", s)
+    def age(s):
+        return one(results, "age_groups", s)
+
     mixed_pooled = age("different loadings: pooled")
     mixed_worst = age("different loadings: 50+")
     mixed_best = age("different loadings: 18-29")
 
-    bad = lambda s: one(results, "bad_items", s)
+    def bad(s):
+        return one(results, "bad_items", s)
+
     clean = bad("clean")
     wrong = bad("one reversed item, not recoded")
     noise = bad("one noise item (loading 0)")

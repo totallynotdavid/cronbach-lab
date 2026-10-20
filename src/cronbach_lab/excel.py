@@ -22,7 +22,7 @@ def write_workbook(out_dir, name, x, columns, age_group=None):
         "items": x.shape[1],
         "respondents": x.shape[0],
     }
-    for column, value in zip(columns, alpha_if_dropped(x)):
+    for column, value in zip(columns, alpha_if_dropped(x), strict=True):
         metrics[f"alpha if {column} dropped"] = value
     reliability = pd.DataFrame({"metric": list(metrics), "value": list(metrics.values())})
 
