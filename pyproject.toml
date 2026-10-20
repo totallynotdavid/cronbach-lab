@@ -14,6 +14,9 @@ dependencies = [
 [project.scripts]
 cronbach-lab = "cronbach_lab.cli:main"
 
+[tool.ruff]
+select = ["E4", "E7", "E9", "F", "B", "I", "UP", "SIM", "RUF"]
+
 [dependency-groups]
 dev = [
     "pytest",
