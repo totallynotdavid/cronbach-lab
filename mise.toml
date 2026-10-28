@@ -1,9 +1,9 @@
 [tools]
-python = "3.15.0"
-uv = "0.13.1"
+python = "3.15.2"
+uv = "0.13.6"
 
 [env]
-UV_PYTHON = "3.14.8"
+UV_PYTHON = "3.15.2"
 
 [tasks.test]
 description = "Run pytest, including the R cross-check when Rscript and psych are present"
